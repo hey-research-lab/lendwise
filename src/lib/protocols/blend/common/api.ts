@@ -16,13 +16,15 @@ import {
 import { Address, Networks, rpc as stellarRpc } from '@stellar/stellar-sdk'
 
 import { type ServerRpc, serverRpc } from '@/config/rpc.server'
+import { STELLAR_NETWORKS } from '@/config/stellar-network'
 import { redactRpcSecrets } from '@/lib/evm/redact'
+import { createPacedQueue } from '@/lib/net/paced-queue'
 
 import type { BlendDeployment } from './deployments'
 import type { TokenMetadata } from './types'
 
 /** Public Soroban RPC, used when the RPC provider does not serve Stellar. */
-export const PUBLIC_SOROBAN_RPC = 'https://mainnet.sorobanrpc.com'
+export const PUBLIC_SOROBAN_RPC = STELLAR_NETWORKS.mainnet.publicSorobanRpcUrl
 
 /** Blend's network from a server RPC: its URL and auth header, or the public endpoint. */
 export function blendNetworkFrom(rpc: ServerRpc | null): Network {
@@ -85,8 +87,6 @@ const RPC_MIN_INTERVAL_MS = Number(
   process.env.STELLAR_RPC_MIN_INTERVAL_MS ?? 300
 )
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
 /**
  * Whether a failure is the endpoint refusing us rather than the chain
  * answering.
@@ -129,8 +129,7 @@ export function sanitizeRpcError(err: unknown): Error {
   return clean
 }
 
-let rpcQueue: Promise<unknown> = Promise.resolve()
-let lastCallAt = 0
+const rpcQueue = createPacedQueue({ minIntervalMs: RPC_MIN_INTERVAL_MS })
 
 /**
  * Serializes every Soroban RPC read in this module behind a minimum interval.
@@ -145,23 +144,13 @@ let lastCallAt = 0
  * past each other into the same limit.
  */
 function pacedRpc<T>(fn: () => Promise<T>): Promise<T> {
-  const run = async (): Promise<T> => {
-    const wait = lastCallAt + RPC_MIN_INTERVAL_MS - Date.now()
-    if (wait > 0) await sleep(wait)
-    lastCallAt = Date.now()
+  return rpcQueue.run(async () => {
     try {
       return await fn()
     } catch (err) {
       throw sanitizeRpcError(err)
     }
-  }
-  // Chained on both settle paths so one rejection cannot stall the queue.
-  const result = rpcQueue.then(run, run)
-  rpcQueue = result.then(
-    () => undefined,
-    () => undefined
-  )
-  return result
+  })
 }
 
 /**

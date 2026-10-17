@@ -2,11 +2,13 @@ import type { HealRow } from '@/lib/db/repositories/gaps'
 import { findNearestDonor } from '@/lib/heal/donors'
 import { groupGapsByProvider } from '@/lib/heal/gap-spans'
 import { toHistoryResult } from '@/lib/protocols/core/history-result'
+import type { ChainFamily } from '@/lib/protocols/core/toolkit/chain-slugs'
 import type {
   HistoryDataPoint,
   HistoryFailure,
 } from '@/lib/protocols/core/types'
 
+import { adapterFamily, emptyFamilyReport } from './families'
 import type {
   GapEntry,
   ReconcileDeps,
@@ -129,8 +131,36 @@ export async function runReconcile(
     aggregated: { perDay: [] },
     pruned: 0,
     orphans: { hourly: 0, daily: 0 },
+    families: {},
     durationMs: 0,
     errors,
+  }
+
+  // ── Step 0 — inventory: every registered adapter, by chain family ─────────
+  // Read-only, so it runs in a dry run too. Listing every adapter — not only
+  // those with holes tonight — is what shows a family checked on a quiet night.
+
+  const providerFamily = new Map<string, ChainFamily>()
+  for (const adapterId of deps.adapterIds()) {
+    try {
+      const adapter = await deps.loadAdapter(adapterId)
+      const family = adapterFamily(adapter)
+      if (!family) {
+        errors.push(`families: ${adapterId} declares no single chain family`)
+        continue
+      }
+      const bucket = (report.families[family] ??= emptyFamilyReport())
+      bucket.adapters.push({
+        id: adapter.id,
+        provider: adapter.provider,
+        hasHistory: typeof adapter.getApyHistory === 'function',
+      })
+      providerFamily.set(adapter.provider, family)
+    } catch (err) {
+      errors.push(
+        `families: ${adapterId}: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
   }
 
   // ── Step 1 — detect ───────────────────────────────────────────────────────
@@ -172,7 +202,7 @@ export async function runReconcile(
 
   if (entries.length > 0) {
     try {
-      await repair(deps, opts, entries, report, errors, log)
+      await repair(deps, opts, entries, report, errors, log, providerFamily)
     } catch (err) {
       errors.push(`repair: ${err instanceof Error ? err.message : String(err)}`)
     }
@@ -240,7 +270,8 @@ async function repair(
   entries: GapEntry[],
   report: ReconcileReport,
   errors: string[],
-  log: (msg: string) => void
+  log: (msg: string) => void,
+  providerFamily: ReadonlyMap<string, ChainFamily>
 ): Promise<void> {
   const productIds = [...new Set(entries.map((e) => e.productId))]
   const [providerOf, targets] = await Promise.all([
@@ -248,6 +279,12 @@ async function repair(
     deps.historyTargets(productIds),
   ])
   const targetById = new Map(targets.map((t) => [t.productId, t]))
+
+  /** The family section a provider's outcomes count in, when it is registered. */
+  const familyOf = (provider: string | undefined) => {
+    const family = provider ? providerFamily.get(provider) : undefined
+    return family ? report.families[family] : undefined
+  }
 
   const { spanByProvider, globalSpan } = groupGapsByProvider(
     entries.map((e) => ({
@@ -266,6 +303,8 @@ async function repair(
       byNeighbor: 0,
     })
     bucket.gaps++
+    const family = familyOf(provider)
+    if (family) family.gaps++
   }
 
   // Phase 1 — authoritative refetch, each provider over its OWN span and only
@@ -279,6 +318,9 @@ async function repair(
       .map((id) => targetById.get(id))
       .filter((t): t is NonNullable<typeof t> => t !== undefined)
     report.fetch.requested += wanted.length
+    const family = familyOf(provider)
+    if (family) family.fetch.requested += wanted.length
+    const returnedIds = new Set<string>()
 
     for (const adapterId of deps.adapterIdsForProvider(provider)) {
       try {
@@ -301,14 +343,20 @@ async function repair(
             lookupKey(pt.productId, normalizeHour(pt.timestamp)),
             pt
           )
+          returnedIds.add(pt.productId)
         }
         failures.push(...result.failures)
+        if (family) family.fetch.failed += result.failures.length
       } catch (err) {
         errors.push(
           `${adapterId}-history: ${err instanceof Error ? err.message : String(err)}`
         )
+        // A history call that throws answered for none of what it was asked.
+        if (family) family.fetch.failed += wanted.length
       }
     }
+
+    if (family) family.fetch.returned += returnedIds.size
   }
 
   report.fetch.returned = new Set(
@@ -357,6 +405,7 @@ async function repair(
   for (const entry of entries) {
     const provider = providerOf.get(entry.productId)
     const bucket = provider ? report.repaired.perProvider[provider] : undefined
+    const family = familyOf(provider)
 
     const hp = historyLookup.get(lookupKey(entry.productId, entry.hour))
     if (hp) {
@@ -377,6 +426,7 @@ async function repair(
       })
       report.repaired.byRefetch++
       if (bucket) bucket.byRefetch++
+      if (family) family.repaired.byRefetch++
       continue
     }
 
@@ -396,8 +446,10 @@ async function repair(
       })
       report.repaired.byNeighbor++
       if (bucket) bucket.byNeighbor++
+      if (family) family.repaired.byNeighbor++
     } else {
       report.repaired.noDonor++
+      if (family) family.repaired.noDonor++
     }
   }
 

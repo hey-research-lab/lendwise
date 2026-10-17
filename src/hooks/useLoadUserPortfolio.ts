@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 
 import { loadUserPortfolio } from '@/app/actions'
+import { PORTFOLIO_REFRESH_EVENT } from '@/lib/portfolio/refresh-event'
 import {
   type PortfolioWalletInput,
   type UserPortfolioResult,
@@ -34,6 +35,13 @@ export function useLoadUserPortfolio(wallets: PortfolioWalletInput[]) {
       }
     })
   }, [wallets])
+
+  // A bridge transfer that lands asks every mounted portfolio to reload.
+  useEffect(() => {
+    const onRefresh = () => fetchPortfolio()
+    window.addEventListener(PORTFOLIO_REFRESH_EVENT, onRefresh)
+    return () => window.removeEventListener(PORTFOLIO_REFRESH_EVENT, onRefresh)
+  }, [fetchPortfolio])
 
   return { portfolio, fetchPortfolio, isPending, error }
 }

@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import {
   AlertTriangle,
-  ArrowUpRightFromSquare,
   CheckCircle2,
   ChevronRight,
   Search,
@@ -21,7 +20,9 @@ import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { SupplyingOptimizerView } from '@/components/optimizer/SupplyingOptimizerButton'
 import { ProductDetailDrawer } from '@/components/products/ProductDetailDrawer'
+import { ProductRowActions } from '@/components/products/ProductRowActions'
 import { RewardApyCell } from '@/components/products/RewardApyCell'
+import { StellarBridgeBanner } from '@/components/products/StellarBridgeBanner'
 import { TableSkeleton } from '@/components/products/TableSkeleton'
 import { StatsBar } from '@/components/stats/StatsBar'
 import {
@@ -75,6 +76,8 @@ import {
   formatRateRange,
   pluralize,
 } from '@/lib/product-stats'
+import { isStellarNetworkFiltered } from '@/lib/products/bridge-entry'
+import { rankProducts } from '@/lib/products/ranking'
 import {
   SUPPLY_FILTERS_KEY,
   fieldValue,
@@ -297,19 +300,9 @@ const createColumns = (
   },
   {
     id: 'actions',
-    size: 80,
-    minSize: 80,
-    cell: ({ row }) =>
-      row.original.link ? (
-        <a
-          target="_blank"
-          rel="noopener noreferrer"
-          href={row.original.link}
-          className="flex w-full items-center justify-center"
-        >
-          <ArrowUpRightFromSquare size={15} />
-        </a>
-      ) : null,
+    size: 96,
+    minSize: 96,
+    cell: ({ row }) => <ProductRowActions product={row.original} />,
   },
 ]
 
@@ -366,8 +359,13 @@ export function SupplyTableClient() {
     const filtered = visibleMarkets.filter(
       (row) => row.assetSymbol === 'USDC' && !isOverutilized(row)
     )
-    const sorted = [...filtered].sort((a, b) => (b.apy ?? 0) - (a.apy ?? 0))
-    const top3 = sorted.slice(0, 3)
+    // Same ranking as the table, every chain family alike: a Stellar market
+    // that pays the most is preselected like any other.
+    const top3 = rankProducts(filtered, {
+      apyKey: 'apy',
+      tvlKey: 'assetAmountUsd',
+      idKey: 'productId',
+    }).slice(0, 3)
     if (top3.length === 0) return
 
     const newTopIds = new Set(top3.map(getRowId))
@@ -473,6 +471,14 @@ export function SupplyTableClient() {
   const visibleMarkets = withHorizonData.filter((m) =>
     matchesFilters(m, tableFilters, horizon)
   )
+
+  // The table's default order. TanStack's sort on the rate column is stable,
+  // so these tie-breaks (depth, then product id) survive it.
+  const rankedMarkets = rankProducts(visibleMarkets, {
+    apyKey: HORIZON_CONFIG[horizon].apyKey as keyof SupplyProduct,
+    tvlKey: 'assetAmountUsd',
+    idKey: 'productId',
+  })
 
   const selectedData = visibleMarkets.filter(
     (row) => rowSelection[getRowId(row)]
@@ -948,6 +954,8 @@ export function SupplyTableClient() {
         </div>
       </div>
 
+      {isStellarNetworkFiltered(columnFilters) && <StellarBridgeBanner />}
+
       <DataTable
         key={horizon}
         fillHeight
@@ -956,7 +964,7 @@ export function SupplyTableClient() {
         hiddenColumns={['assetSymbol']}
         searchableColumn="poolName"
         columns={columns}
-        data={visibleMarkets}
+        data={rankedMarkets}
         initialSorting={[{ id: sortColumn, desc: true }]}
         getRowId={getRowId}
         hideToolbar={true}

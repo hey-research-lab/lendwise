@@ -21,11 +21,12 @@ vi.mock('@/lib/db/repositories/products', () => ({
   syncProviderProducts: mocks.syncProviderProducts,
 }))
 
-vi.mock('@/config/protocols-server', () => ({
-  YIELD_ADAPTERS: {
+vi.mock('@/config/protocols-server', () => {
+  const adapters = {
     aave_v3: async () => ({ getProducts: mocks.getProducts }),
-  },
-}))
+  }
+  return { YIELD_ADAPTERS: adapters, yieldAdapters: () => adapters }
+})
 
 const { syncProducts } = await import('@/app/actions/products-sync.actions')
 

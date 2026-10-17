@@ -3,7 +3,7 @@
 > **Scope** — the Stellar integration validated in the Stellar Community Fund #45 submission,
 > structured around five parts: Blend spot market data, Blend historical data via Stellar Hubble,
 > Stellar wallet + SEP-10 auth + Blend positions + health factor + unified portfolio, CCTP
-> execution from EVM into Blend, and optimizer ranking + monitoring.
+> execution from EVM into a Stellar wallet, and optimizer ranking + monitoring.
 >
 > **Legend** — <span style="color:#16a34a">green = NEW bricks added for Stellar</span> ·
 > blue = existing EVM pipeline (unchanged) · grey = shared core (unchanged) ·
@@ -14,7 +14,8 @@ The integration spans five parts, matching the submission's tranche structure:
 1. **Blend spot market data** — live rates and reserve parameters from Blend v2.1 (v1/v2 retired).
 2. **Blend historical data** — reserve-state reconstruction from Stellar Hubble.
 3. **Wallet, auth & portfolio** — SEP-10, Blend position reads, health factor, unified portfolio.
-4. **CCTP execution** — native USDC from an EVM chain into a Blend deposit.
+4. **CCTP execution** — native USDC from an EVM chain into the user's Stellar wallet, ready for
+   any Stellar venue.
 5. **Optimizer & monitoring** — Blend ranked as a venue, nightly gap detection and healing.
 
 ---
@@ -268,28 +269,33 @@ flowchart TD
 
 ---
 
-## 4. CCTP execution — EVM → Stellar → Blend
+## 4. CCTP execution — EVM → Stellar
 
 ```mermaid
 flowchart TD
-    Opportunity["Blend opportunity identified by LendWise<br/>(optimizer ranking or manual selection)"] --> TrustlineCheck{"Recipient Stellar wallet<br/>has USDC trustline?"}
+    Entry["Entry point<br/>Stellar filter, USDC rows, optimizer allocation<br/>deep link /bridge/stellar"] --> Quote["Fee quote<br/>Iris /v2/burn/USDC/fees/{src}/27<br/>Fast (1000) if offered and ≤ 5 bps, else Standard (2000)"]
+    Quote --> TrustlineCheck{"Recipient = SEP-10 account<br/>funded? USDC trustline?<br/>XLM for reserve + fees?"}
 
-    TrustlineCheck -->|"missing"| ChangeTrust["User signs ChangeTrust operation<br/>locks 0.5 XLM base reserve"]
-    ChangeTrust --> Ready["Stellar wallet ready"]
-    TrustlineCheck -->|"present"| Ready
+    TrustlineCheck -->|"missing"| ChangeTrust["User signs ChangeTrust<br/>locks 0.5 XLM base reserve"]
+    ChangeTrust --> Ready["Stellar account ready"]
+    TrustlineCheck -->|"ready"| Ready
 
-    Ready --> Burn["CCTP V2 USDC burn<br/>source EVM chain contracts"]
-    Burn --> Iris["Circle Iris API<br/>attestation polling — Fast Transfer tier"]
-    Iris --> StellarMint["Stellar CCTP Soroban contracts<br/>message-transmitter → token-messenger-minter → cctp-forwarder"]
-    StellarMint --> NativeUSDC["Native USDC available on Stellar<br/>7-decimal rescale from 6-decimal EVM amount"]
-    NativeUSDC --> BlendSupply["LendWise supplies USDC into Blend<br/>guided, single user action"]
-    BlendSupply --> PortfolioUpdate["Blend position appears in<br/>unified portfolio (part 3)"]
+    Ready --> Burn["depositForBurnWithHook — TokenMessengerV2<br/>mintRecipient = destinationCaller = CctpForwarder<br/>hook = recipient strkey · domain 27"]
+    Burn --> Iris["Circle Iris /v2/messages/{src}<br/>one paced request per poll"]
+    Iris --> Validate["Attested message validated<br/>header + BurnMessageV2 body + hook recipient"]
+    Validate --> StellarMint["User signs mint_and_forward — CctpForwarder<br/>MessageTransmitter.receive_message → TokenMessengerMinter"]
+    StellarMint --> NativeUSDC["Native USDC in the Stellar wallet<br/>expected (amount − feeExecuted) × 10, read from the mint events"]
+    NativeUSDC --> PortfolioUpdate["USDC in the unified portfolio (part 3)<br/>next step: supply on any Stellar venue"]
+
+    Burn -.-> Audit[("bridge_transfers<br/>one row per transfer · every hash · resume state")]
+    Validate -.-> Audit
+    StellarMint -.-> Audit
 
     classDef core fill:#e5e7eb,stroke:#6b7280,color:#111827;
     classDef bridge fill:#ede9fe,stroke:#7c3aed,color:#111827,stroke-width:2px;
 
-    class Opportunity,PortfolioUpdate core;
-    class TrustlineCheck,ChangeTrust,Ready,Burn,Iris,StellarMint,NativeUSDC,BlendSupply bridge;
+    class Entry,PortfolioUpdate,Audit core;
+    class Quote,TrustlineCheck,ChangeTrust,Ready,Burn,Iris,Validate,StellarMint,NativeUSDC bridge;
 ```
 
 **Reading the diagram**
@@ -297,19 +303,41 @@ flowchart TD
 - **Order is load-bearing: trustline check before burn, not after.** Stellar requires an explicit
   trustline before an account can hold any non-native asset, including SEP-41-wrapped USDC — a
   mint to an account without one fails at the ledger level, and that failure only surfaces after
-  the source-chain burn has already been attested. The check has to gate the burn, not just the
-  mint.
+  the source-chain burn has already been attested. The preflight (`src/lib/execution/cctp/trustline.ts`)
+  gates the burn button.
 - **The forwarder step is not optional.** Stellar's account model can't receive an arbitrary
   contract's mint the way an EVM address receives an ERC-20 `mint(to, amount)` call, so
-  `mintRecipient` is routed to the `cctp-forwarder` contract (with `destinationCaller` also set to
+  `mintRecipient` is routed to the `CctpForwarder` contract (with `destinationCaller` also set to
   it) — routing it to the end-user's address directly makes the funds permanently unrecoverable,
-  per Circle's own documentation.
+  per Circle's own documentation. The burn is planned on the server from per-network constants
+  (`src/lib/execution/cctp/config.ts`, `burn.ts`); the browser only signs it.
+- **Decimals are rescaled in the transfer logic**: 6 on EVM and in the CCTP message, 7 on
+  Stellar. The amount received is read from the mint transaction's events and stored.
 - **Fast Transfer is the default finality tier**, since Stellar's own ~5-second finality means the
-  attestation wait dominates total transfer time regardless of tier choice.
-- **This is not an isolated bridge integration.** The chain is presented as one guided product
-  flow — burn → attestation → mint → Blend deposit — triggered from a ranked Blend opportunity
-  (part 5), with a transaction hash logged at every step for auditability. This chain is what
-  materializes LendWise's cross-chain execution layer for Stellar.
+  attestation wait dominates total transfer time regardless of tier choice. The tier follows the
+  live fee quote (`fees.ts`).
+- **Nothing is minted on an unchecked message.** The attested message is parsed and every field is
+  checked against the plan before the mint is prepared (`message.ts`): source and destination
+  domains, `TokenMessengerMinter` as header recipient, the forwarder as destination caller and
+  mint recipient, amount, fee, sender, and the hook recipient = the signed-in Stellar account.
+  The sender is the burn's `depositor` from the `DepositForBurn` event (`evm-receipt.ts`), not the
+  transaction's `from`, so a burn sent through a smart account validates too.
+- **The user signs everything.** ChangeTrust and `mint_and_forward` are prepared by the server,
+  signed in the user's Stellar wallet and validated before relay; approve and burn are signed in
+  the EVM wallet. A signed ChangeTrust must carry the maximum trustline limit. No LendWise key, no
+  relayer.
+- **Auditable and resumable.** Every step writes its transaction hash to `bridge_transfers` from
+  the server; the row is unique per owner (`source_domain`, `burn_tx_hash`, `stellar_address`).
+  The same row is the resume state: a transfer interrupted after the burn is resumed from the
+  bridge page, never burned twice. A mint left pending is marked failed once the mint
+  transaction's 300-second validity plus 30 seconds has passed (`service.ts`).
+- **Protocol-independent.** The flow ends with native USDC in the wallet and in the unified
+  portfolio. Supplying it to Blend — or to any venue integrated through the adapter contract — is
+  the user's next step; the bridge holds no protocol code.
+- **Testnet mode.** One switch per deployment (`NEXT_PUBLIC_NETWORK`,
+  `src/config/stellar-network.ts`) moves SEP-10, the wallet kit, Horizon, Soroban RPC, the CCTP
+  contracts, Iris and the EVM chains to testnet. Every preview runs on testnet unless the variable
+  says `mainnet` (testnet.lendwise.fi is the testnet staging); production is always mainnet.
 
 ---
 
@@ -319,38 +347,47 @@ flowchart TD
 flowchart TD
     subgraph Rank["Optimizer ranking"]
         direction TB
-        BlendData[("Standardized Blend market data<br/>apy_hourly / apy_daily")] --> Optimizer["Existing LendWise optimizer<br/>ranking engine, unchanged"]
-        Optimizer --> Ranked["Blend ranked alongside<br/>Aave / Morpho / Compound"]
-        Ranked -->|"Blend selected"| GuidedFlow["Deep link into guided<br/>CCTP-to-Blend flow (part 4)"]
+        StellarData[("Standardized Stellar market data<br/>apy_hourly / apy_daily")] --> Ranking["rankProducts — same rule for every row<br/>row tagged with its chain family"]
+        Ranking --> Ranked["Stellar venues ranked alongside<br/>Aave / Morpho / Compound"]
+        Ranked -->|"Stellar row, Stellar filter,<br/>or optimizer allocation"| GuidedFlow["Deep link into the guided<br/>CCTP flow (part 4)<br/>/bridge/stellar?asset=USDC&amount=…&product=…"]
     end
 
     subgraph Monitor["Nightly reconcile & gap healing"]
         direction TB
-        NightlyCron["Existing /api/yield/apy/reconcile<br/>runReconcile(), 7-day sliding window"] --> GapDetect["findGaps / findIncomplete<br/>detect missing/incomplete Blend hours"]
-        GapDetect --> Heal["Heal from donor products, or via<br/>adapter.getApyHistory() once Blend has one"]
-        Heal --> Reports[("pipeline_reports<br/>insertReport('reconcile', …) — Blend alongside EVM protocols")]
+        NightlyCron["Existing /api/yield/apy/reconcile<br/>runReconcile(), 7-day sliding window"] --> GapDetect["findGaps / findIncomplete<br/>missing / incomplete hours, every adapter"]
+        GapDetect --> Heal["Refetch via adapter.getApyHistory()<br/>Stellar: Hubble reconstruction (part 2)<br/>else heal from donor hours"]
+        Heal --> Reports[("pipeline_reports<br/>insertReport('reconcile', …)<br/>families: evm · stellar")]
     end
 
     classDef core fill:#e5e7eb,stroke:#6b7280,color:#111827;
     classDef stellar fill:#dcfce7,stroke:#16a34a,color:#111827,stroke-width:2px;
 
-    class Optimizer,Ranked,NightlyCron,GapDetect,Heal,Reports core;
-    class BlendData,GuidedFlow stellar;
+    class Ranked,NightlyCron,GapDetect,Heal core;
+    class StellarData,Ranking,GuidedFlow,Reports stellar;
 ```
 
 **Reading the diagram**
 
-- **Optimizer:** reuses the existing ranking engine as-is — Blend's rates already flow into the
-  same `apy_hourly`/`apy_daily` tables every other protocol uses, so surfacing Blend is a UI and
-  deep-linking task, not a new ranking engine. Selecting a ranked Blend entry deep-links directly
-  into the guided CCTP-to-Blend flow (part 4), tying market intelligence → optimization →
-  execution together.
-- **Monitoring:** `runReconcile()` behind `/api/yield/apy/reconcile` already runs generically
-  across every registered adapter in `YIELD_ADAPTERS`, over a 7-day sliding window
-  (`RECONCILE_WINDOW_DAYS`). Registering Blend into that existing gap-detection/healing cycle — no
-  new monitoring infrastructure — means every night LendWise checks for holes in the Blend record
-  and heals them through `blend_v2.1`'s `getApyHistory()` (part 2), with one row per
-  run logged into the same `pipeline_reports` table every other protocol uses.
+- **Optimizer:** the ranking rule is unchanged — rates from any registered Stellar adapter flow
+  into the same `apy_hourly`/`apy_daily` tables every other protocol uses. `src/lib/products/ranking.ts`
+  ranks every row by the same rule and tags it with its chain family; the family never changes the
+  rank, only what the row's bridge link pre-fills (next bullet). Covered in CI against a fixture
+  Stellar adapter (`stellar_fixture`), so any Stellar venue registered through the adapter
+  contract is ranked with no further engineering.
+- **Entry points:** the Stellar network filter shows a "Bridge USDC to Stellar" banner, and an
+  optimizer allocation on a Stellar venue links to the bridge with the allocated amount. Every
+  USDC row, Stellar or EVM, shows a "Bridge to Stellar" action next to its protocol link
+  (`ProductRowActions`, `bridgeActionFor`); the protocol link stays. On a Stellar USDC row the
+  bridge link carries `product=<productId>`, so the flow can name the venue as the next step. On
+  an EVM USDC row of a supported CCTP source chain it carries `source=<chain>`; on any other EVM
+  row it carries no source rather than a silent default. Links come from one builder
+  (`bridgeHref`).
+- **Monitoring:** `runReconcile()` behind `/api/yield/apy/reconcile` runs generically across every
+  registered adapter, over a 7-day sliding window (`RECONCILE_WINDOW_DAYS`). `blend_v2.1` heals
+  missing hours through its Hubble-backed `getApyHistory()` (part 2). Each nightly report in
+  `pipeline_reports` has a `families` section — adapters, gaps detected, hours repaired by
+  refetch or from neighbours, history calls — so the Stellar family shows in the same health
+  checks as the EVM protocols. `scripts/reconcile-status.ts` prints it.
 
 ---
 
@@ -361,49 +398,52 @@ flowchart LR
     A["Connect Stellar wallet<br/>Freighter / xBull / Lobstr / Albedo<br/>+ SEP-10 auth (NEW)"] --> B["Unified dashboard<br/>EVM + Blend market data<br/>(spot + 90+ days historical)"]
     B --> C["Optimizer<br/>Blend ranked alongside Aave / Morpho / Compound"]
     C --> D{"Blend selected?"}
-    D -->|"yes"| E["Guided CCTP-to-Blend flow<br/>trustline check → burn → attestation → mint → deposit"]
+    D -->|"yes"| E["Guided CCTP flow<br/>trustline check → burn → attestation → mint<br/>native USDC in the Stellar wallet"]
     D -->|"no"| F["EVM venue<br/>existing flow, unchanged"]
-    E --> G["Blend position reflected in<br/>unified portfolio + health factor"]
+    E --> E2["User supplies USDC to the chosen venue<br/>(next step, outside the bridge)"]
+    E2 --> G["Blend position reflected in<br/>unified portfolio + health factor"]
     F --> G
     G --> B
 
     classDef core fill:#e5e7eb,stroke:#6b7280,color:#111827;
-    class A,B,C,D,E,F,G core;
+    class A,B,C,D,E,E2,F,G core;
 ```
 
 This is the guided flow the submission promises: **connect → compare → optimize → execute**, with
-Blend as a first-class venue ranked next to EVM markets and reachable directly from an EVM wallet
-via CCTP — with no DEX swap, third-party bridge, or fiat on-ramp step in the path.
+Stellar venues ranked next to EVM markets and native USDC reachable directly from an EVM wallet
+via CCTP — with no DEX swap, third-party bridge, or fiat on-ramp step in the path. The bridge ends
+with USDC in the user's Stellar wallet; the deposit into the chosen venue is the user's next step.
 
 ---
 
 ## 7. New vs existing — at a glance
 
-| Brick                                  | Status         | Library / path                                                                                     |
-| :------------------------------------- | :------------- | :------------------------------------------------------------------------------------------------- |
-| Adapter registry                       | existing       | `YIELD_ADAPTERS` — `src/config/protocols-server.ts`                                                |
-| Spot collection                        | existing       | `collectApySpot()` — `app/actions/apy-snapshots.actions.ts`                                        |
-| EVM lending data                       | existing       | The Graph subgraphs via `createGraphQLClient()` (URQL)                                             |
-| `apy_hourly` / `apy_daily`             | existing       | `repositories/apy.ts` + Drizzle schema                                                             |
-| Nightly reconcile (aggregate/heal)     | existing       | `/api/yield/apy/reconcile` — `runReconcile()`, 7-day sliding window                                |
-| GraphQL serving                        | existing       | `graphql-yoga` `/api/graphql`                                                                      |
-| Existing EVM position fetch            | existing       | portfolio data-fetch layer                                                                         |
-| Existing optimizer ranking engine      | existing       | optimizer module, unchanged                                                                        |
-| Blend V1 spot adapter                  | retired        | `src/lib/protocols/blend/v1/apy-spot.ts` — unregistered, pools frozen                              |
-| Blend V2 spot adapter                  | retired        | `src/lib/protocols/blend/v2/apy-spot.ts` — code reused by v2.1                                     |
-| Blend v2.1 adapter                     | **shipped**    | `src/lib/protocols/blend/v2_1/` — v2 code, v2.1 backstop (`blend/common/deployments.ts`)           |
-| Blend data source                      | **shipped**    | `@blend-capital/blend-sdk` + `@stellar/stellar-sdk` over Soroban RPC                               |
-| Stellar wallet connection              | **shipped**    | `StellarWalletContext.tsx` — Freighter / xBull / Lobstr / Albedo                                   |
-| `chainFamily` store field              | **shipped**    | `src/stores/walletStore.ts`                                                                        |
-| **Blend rate-parameter fields**        | **NEW (1.1a)** | `ir_mod` / `util` / `r_base` / `r_one` / `r_two` / `r_three` / `reactivity` + failure-path tests   |
-| Blend historical adapter               | **shipped**    | `blend/common/apy-history.ts` (decoder) — `getApyHistory()` on `blend_v2.1`                        |
-| Stellar Hubble reconstruction          | **shipped**    | `stellar/hubble-history.ts`; consumed by `backfill-history.ts`, reconcile, `stellar-history.ts`    |
-| SEP-10 authentication                  | **shipped**    | `/api/auth/stellar/{challenge,verify,session}` + `lib/auth/stellar-sep10.ts` + client signing flow |
-| **Blend position reads**               | **NEW (2.1a)** | `PoolUser.load` + bToken/dToken conversion                                                         |
-| **Health factor calculation**          | **NEW (2.1b)** | per-reserve collateral/liability factors, reused oracle price map                                  |
-| **Portfolio merge**                    | **NEW (2.2b)** | `Promise.allSettled` + partial-data indicator                                                      |
-| **CCTP trustline check & ChangeTrust** | **NEW (3.1b)** | `src/lib/execution/cctp/trustline.ts`                                                              |
-| **CCTP burn (EVM) + forwarder mint**   | **NEW (3.1a)** | `src/lib/execution/cctp/` — Circle CCTP V2 + Stellar Soroban contracts                             |
-| **CCTP attestation → Blend deposit**   | **NEW (3.1c)** | Circle Iris polling client + chained Blend Supply call                                             |
-| **Optimizer ranking surfacing**        | **NEW (3.2a)** | Blend added as ranked venue + deep link into CCTP flow                                             |
-| **Monitoring / gap-heal extension**    | **NEW (3.2b)** | Blend registered into existing reconcile + `pipeline_reports`                                      |
+| Brick                              | Status             | Library / path                                                                                                              |
+| :--------------------------------- | :----------------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| Adapter registry                   | existing           | `YIELD_ADAPTERS` — `src/config/protocols-server.ts`                                                                         |
+| Spot collection                    | existing           | `collectApySpot()` — `app/actions/apy-snapshots.actions.ts`                                                                 |
+| EVM lending data                   | existing           | The Graph subgraphs via `createGraphQLClient()` (URQL)                                                                      |
+| `apy_hourly` / `apy_daily`         | existing           | `repositories/apy.ts` + Drizzle schema                                                                                      |
+| Nightly reconcile (aggregate/heal) | existing           | `/api/yield/apy/reconcile` — `runReconcile()`, 7-day sliding window                                                         |
+| GraphQL serving                    | existing           | `graphql-yoga` `/api/graphql`                                                                                               |
+| Existing EVM position fetch        | existing           | portfolio data-fetch layer                                                                                                  |
+| Existing optimizer ranking engine  | existing           | optimizer module, unchanged                                                                                                 |
+| Blend V1 spot adapter              | retired            | `src/lib/protocols/blend/v1/apy-spot.ts` — unregistered, pools frozen                                                       |
+| Blend V2 spot adapter              | retired            | `src/lib/protocols/blend/v2/apy-spot.ts` — code reused by v2.1                                                              |
+| Blend v2.1 adapter                 | **shipped**        | `src/lib/protocols/blend/v2_1/` — v2 code, v2.1 backstop (`blend/common/deployments.ts`)                                    |
+| Blend data source                  | **shipped**        | `@blend-capital/blend-sdk` + `@stellar/stellar-sdk` over Soroban RPC                                                        |
+| Stellar wallet connection          | **shipped**        | `StellarWalletContext.tsx` — Freighter / xBull / Lobstr / Albedo                                                            |
+| `chainFamily` store field          | **shipped**        | `src/stores/walletStore.ts`                                                                                                 |
+| **Blend rate-parameter fields**    | **NEW (1.1a)**     | `ir_mod` / `util` / `r_base` / `r_one` / `r_two` / `r_three` / `reactivity` + failure-path tests                            |
+| Blend historical adapter           | **shipped**        | `blend/common/apy-history.ts` (decoder) — `getApyHistory()` on `blend_v2.1`                                                 |
+| Stellar Hubble reconstruction      | **shipped**        | `stellar/hubble-history.ts`; consumed by `backfill-history.ts`, reconcile, `stellar-history.ts`                             |
+| SEP-10 authentication              | **shipped**        | `/api/auth/stellar/{challenge,verify,session}` + `lib/auth/stellar-sep10.ts` + client signing flow                          |
+| Blend position reads               | **shipped (2.1a)** | `src/lib/protocols/blend/v2_1/positions.ts` — `PoolUser.load` + bToken/dToken conversion                                    |
+| Health factor calculation          | **shipped (2.1b)** | `src/lib/risk/` — per-reserve collateral/liability factors, reused oracle price map                                         |
+| Portfolio merge                    | **shipped (2.2b)** | `src/lib/portfolio/load.ts` — `Promise.allSettled` + partial-data indicator                                                 |
+| Stellar network switch             | **shipped (3.1)**  | `src/config/stellar-network.ts` — mainnet in production, testnet on a dedicated staging                                     |
+| CCTP trustline check & ChangeTrust | **shipped (3.1b)** | `src/lib/execution/cctp/trustline.ts`                                                                                       |
+| CCTP burn (EVM) + forwarder mint   | **shipped (3.1a)** | `src/lib/execution/cctp/{config,amounts,hook,burn,message,mint}.ts` — Circle CCTP V2 + Stellar Soroban contracts            |
+| CCTP attestation → native USDC     | **shipped (3.1c)** | `src/lib/execution/cctp/iris.ts` (paced Iris client) + `service.ts`, `bridge_transfers` audit table, `/bridge/stellar` flow |
+| Optimizer ranking surfacing        | **shipped (3.2a)** | `src/lib/products/ranking.ts` + deep link `bridgeHref` into the CCTP flow                                                   |
+| Monitoring / gap-heal extension    | **shipped (3.2b)** | `families` section of the reconcile report in `pipeline_reports`; Stellar fixture adapter on staging                        |

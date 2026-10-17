@@ -11,6 +11,8 @@ import {
 } from '@/lib/risk/types'
 import type { BorrowPosition, SupplyPosition } from '@/types'
 
+import { FIXTURE_POOL_ID } from './config'
+
 /**
  * Staging fixture for SCF #45 Tranche 2: known positions and per-reserve risk
  * weights for ONE configured Stellar address, registered through the same
@@ -19,8 +21,7 @@ import type { BorrowPosition, SupplyPosition } from '@/types'
  * (RISK_DROP_PRICE_KEYS) shows the "unknown" state.
  */
 export const FIXTURE_PROTOCOL = 'stellar_fixture' as const
-export const FIXTURE_POOL_ID =
-  'CBAKAZUEJBAFA2DCGBRS2WKJT3FNIMJBHTFL76AY7XMAVEINQNNIQWAO'
+export { FIXTURE_POOL_ID }
 const CHAIN_ID = -1
 
 export const FIXTURE_RESERVES = [

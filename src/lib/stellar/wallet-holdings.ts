@@ -1,3 +1,5 @@
+import { stellarNetwork } from '@/config/stellar-network'
+import { stellarHorizonUrl } from '@/config/stellar-network.server'
 import { latestPrice } from '@/lib/db/repositories/price'
 import type { WalletHolding } from '@/lib/portfolio/types'
 
@@ -16,9 +18,7 @@ export interface HorizonBalance {
 export const HORIZON_TIMEOUT_MS = 8_000
 
 function horizonUrl(): string {
-  return (
-    process.env.STELLAR_HORIZON_URL?.trim() || 'https://horizon.stellar.org'
-  )
+  return stellarHorizonUrl()
 }
 
 /** An unfunded account (404) holds nothing; any other failure throws. */
@@ -72,7 +72,10 @@ export function holdingsFromBalances(
 
 function priceSymbol(h: WalletHolding): string | null {
   if (h.assetType === 'native') return 'XLM'
-  if (h.code === 'USDC' && h.issuer === CIRCLE_USDC_ISSUER) return 'USDC'
+  // Circle's USDC of the deployment's network; testnet USDC is priced as USDC.
+  if (h.code === 'USDC' && h.issuer === stellarNetwork().usdc.issuer) {
+    return 'USDC'
+  }
   return null
 }
 

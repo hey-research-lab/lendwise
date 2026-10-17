@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
-import {
-  type ProtocolName,
-  adapterIdsForProvider,
-} from '@/config/protocols-meta'
-import { YIELD_ADAPTERS } from '@/config/protocols-server'
+import { adapterIdsForProviderIn } from '@/config/protocols-meta'
+import { yieldAdapters } from '@/config/protocols-server'
 import { aggregateDaily } from '@/lib/db/repositories/apy'
 import {
   collectedProductCount,
@@ -39,8 +36,15 @@ const deps: ReconcileDeps = {
   collectedProductCount,
   productProviders,
   historyTargets,
-  adapterIdsForProvider,
-  loadAdapter: (adapterId) => YIELD_ADAPTERS[adapterId as ProtocolName](),
+  // The fixture's yield face joins only on a non-production deployment with
+  // STELLAR_YIELD_FIXTURE=1 (see yieldAdapters).
+  adapterIds: () => Object.keys(yieldAdapters()),
+  adapterIdsForProvider: (provider) => adapterIdsForProviderIn(provider),
+  loadAdapter: (adapterId) => {
+    const load = yieldAdapters()[adapterId]
+    if (!load) throw new Error(`Unknown yield adapter: ${adapterId}`)
+    return load()
+  },
   fetchDonors,
   writeHealed,
   aggregateDaily,

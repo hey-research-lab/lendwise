@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ProtocolName } from '@/config/protocols-meta'
+import type { YieldAdapterId as ProtocolName } from '@/config/protocols-meta'
 import type { YieldAdapter } from '@/lib/protocols/core/types'
 
 /**
@@ -19,6 +19,7 @@ vi.mock('@/config/protocols-server', () => ({
   get YIELD_ADAPTERS() {
     return mocks.adapters
   },
+  yieldAdapters: () => mocks.adapters,
 }))
 vi.mock('@/lib/db/repositories/products', () => ({
   distinctProtocolAddresses: mocks.distinctProtocolAddresses,

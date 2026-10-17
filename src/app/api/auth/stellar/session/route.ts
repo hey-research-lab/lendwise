@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { checkSameOrigin } from '@/lib/auth/same-origin'
 import {
   isStellarSessionRevoked,
   revokeStellarSession,
 } from '@/lib/auth/session-store'
-import { verifySessionToken } from '@/lib/auth/stellar-sep10'
+import { allowedDomains, verifySessionToken } from '@/lib/auth/stellar-sep10'
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get('stellar_session')?.value
@@ -27,8 +28,13 @@ export async function GET(request: NextRequest) {
 }
 
 // Sign-out revokes the session server-side, so a copied cookie stops working
-// immediately, not only when the cookie is cleared in this browser.
+// immediately, not only when the cookie is cleared in this browser. It writes
+// the cookie, so only this site's own pages may call it (same-origin.ts).
 export async function DELETE(request: NextRequest) {
+  const site = checkSameOrigin(request, allowedDomains())
+  if (!site.ok)
+    return NextResponse.json({ error: site.error }, { status: site.status })
+
   const token = request.cookies.get('stellar_session')?.value
   const session = token ? verifySessionToken(token) : null
   if (session) {

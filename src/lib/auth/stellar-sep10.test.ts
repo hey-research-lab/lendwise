@@ -324,3 +324,47 @@ describe('stellar session token', () => {
     expect(verifySessionToken(token)).toBeNull()
   })
 })
+
+describe('stellar SEP-10 on a testnet deployment', () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_NETWORK = 'testnet'
+  })
+
+  it('issues the challenge on testnet', async () => {
+    const challenge = await issueStellarChallenge({
+      address: user.publicKey(),
+      domain: DOMAIN,
+    })
+    expect(challenge.networkPassphrase).toBe(Networks.TESTNET)
+  })
+
+  it('verifies a challenge signed for testnet', async () => {
+    const { session } = await verifyStellarChallenge({
+      address: user.publicKey(),
+      transactionXdr: await signedChallenge([user], Networks.TESTNET),
+      domain: DOMAIN,
+    })
+    expect(session.networkPassphrase).toBe(Networks.TESTNET)
+  })
+
+  it('rejects a mainnet session', () => {
+    const now = Math.floor(Date.now() / 1000)
+    const token = signSession({
+      sid: 'sid-network-test-mainnet',
+      address: user.publicKey(),
+      networkPassphrase: Networks.PUBLIC,
+      issuedAt: now,
+      expiresAt: now + 3600,
+    })
+    expect(verifySessionToken(token)).toBeNull()
+  })
+
+  it('stays on mainnet in production, whatever the variable says', async () => {
+    process.env.VERCEL_ENV = 'production'
+    const challenge = await issueStellarChallenge({
+      address: user.publicKey(),
+      domain: DOMAIN,
+    })
+    expect(challenge.networkPassphrase).toBe(Networks.PUBLIC)
+  })
+})

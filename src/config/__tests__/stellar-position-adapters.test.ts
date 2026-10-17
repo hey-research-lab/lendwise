@@ -9,15 +9,26 @@ describe('stellarPositionAdapters', () => {
     expect(Object.keys(stellarPositionAdapters({}))).toEqual(['blend_v2.1'])
   })
 
-  it('adds the fixture on a preview with an address', () => {
+  it('adds the fixture on a mainnet preview with an address', () => {
     expect(
       Object.keys(
         stellarPositionAdapters({
           VERCEL_ENV: 'preview',
+          NEXT_PUBLIC_NETWORK: 'mainnet',
           STELLAR_RISK_FIXTURE_ADDRESS: G,
         })
       )
     ).toEqual(['blend_v2.1', 'stellar_fixture'])
+  })
+
+  it('reads no protocol positions on a preview without the variable', () => {
+    // A preview defaults to testnet, where Blend v2.1 and the fixture have no pools.
+    expect(
+      stellarPositionAdapters({
+        VERCEL_ENV: 'preview',
+        STELLAR_RISK_FIXTURE_ADDRESS: G,
+      })
+    ).toEqual({})
   })
 
   it('never adds it in production', () => {

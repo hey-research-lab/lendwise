@@ -20,6 +20,7 @@
     "table:parity:borrow": "dotenv -- tsx --tsconfig tsconfig.scripts.json scripts/table-parity.ts borrow",
     "backfill:history": "dotenv -- tsx --tsconfig tsconfig.scripts.json scripts/backfill-history.ts",
     "stellar:history": "dotenv -- tsx --tsconfig tsconfig.scripts.json scripts/stellar-history.ts",
+    "reconcile:status": "dotenv -- tsx --tsconfig tsconfig.scripts.json scripts/reconcile-status.ts",
     "retire:products": "dotenv -- tsx --tsconfig tsconfig.scripts.json scripts/retire-products.ts",
     "fix:amount-units": "dotenv -- tsx --tsconfig tsconfig.scripts.json scripts/fix-amount-units.ts",
     "clean:non-finite-apy": "dotenv -- tsx --tsconfig tsconfig.scripts.json scripts/clean-non-finite-apy.ts",

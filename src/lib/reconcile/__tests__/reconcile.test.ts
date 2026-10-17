@@ -65,6 +65,9 @@ function makeDeps(over: Partial<ReconcileDeps> = {}): {
         meta: { id: `key-${id}` },
       }))
     },
+    adapterIds() {
+      return ['acme_v1']
+    },
     adapterIdsForProvider() {
       return ['acme_v1']
     },
@@ -74,7 +77,7 @@ function makeDeps(over: Partial<ReconcileDeps> = {}): {
         name: 'Acme',
         provider: 'acme',
         version: 'v1',
-        chains: {},
+        chains: { 1: { slug: 'ethereum' } },
         getProducts: async () => [],
         getApySpot: async () => [],
         getApyHistory: async (params) => {
@@ -180,7 +183,7 @@ describe('runReconcile', () => {
           name: 'Acme',
           provider: 'acme',
           version: 'v1',
-          chains: {},
+          chains: { 1: { slug: 'ethereum' } },
           getProducts: async () => [],
           getApySpot: async () => [],
           getApyHistory: async () => ({

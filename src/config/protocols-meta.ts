@@ -3,6 +3,7 @@ import { BLEND_PROVIDER } from '@/lib/protocols/blend/common/config'
 import { BLEND_V2_1_META } from '@/lib/protocols/blend/v2_1/meta'
 import { COMPOUND_V3_META } from '@/lib/protocols/compound/v3/meta'
 import { MORPHO_V1_META } from '@/lib/protocols/morpho/v1/meta'
+import { isStellarYieldFixtureEnabled } from '@/lib/protocols/stellar/fixture/config'
 
 /**
  * Each entry is owned by its adapter (`{protocol}/{version}/meta.ts`) and
@@ -56,7 +57,10 @@ export const POSITION_ONLY_PROTOCOLS_META = {
   stellar_fixture: {
     displayName: 'Stellar fixture',
     versionName: 'Stellar fixture',
-    provider: 'stellar_fixture',
+    // The provider its catalogue rows carry: the yield face
+    // (stellar/fixture/yield.ts) writes provider 'stellar', version
+    // 'fixture', so `${provider}_${version}` is this key.
+    provider: 'stellar',
   },
 } as const
 
@@ -88,5 +92,41 @@ export function protocolDisplayName(id: string): string {
 export function adapterIdsForProvider(provider: string): ProtocolName[] {
   return (Object.keys(PROTOCOLS_META) as ProtocolName[]).filter(
     (id) => PROTOCOLS_META[id].provider === provider
+  )
+}
+
+/** A yield adapter id: a registered protocol, or the staging fixture when enabled. */
+export type YieldAdapterId = ProtocolName | PositionOnlyProtocol
+
+interface YieldProtocolMeta {
+  displayName: string
+  versionName: string
+  provider: string
+}
+
+/**
+ * PROTOCOLS_META, plus the Stellar fixture when `STELLAR_YIELD_FIXTURE=1`
+ * outside production — what the catalogue sync, the spot collector and
+ * reconcile walk. PROTOCOLS_META itself never holds the fixture: the client
+ * registries, the GraphQL enum and the ticker read it and must never see it.
+ */
+export function yieldProtocolsMeta(
+  env: Record<string, string | undefined> = process.env
+): Record<string, YieldProtocolMeta> {
+  if (!isStellarYieldFixtureEnabled(env)) return PROTOCOLS_META
+  return {
+    ...PROTOCOLS_META,
+    stellar_fixture: POSITION_ONLY_PROTOCOLS_META.stellar_fixture,
+  }
+}
+
+/** `adapterIdsForProvider` over `yieldProtocolsMeta(env)`: the fixture included when enabled. */
+export function adapterIdsForProviderIn(
+  provider: string,
+  env: Record<string, string | undefined> = process.env
+): YieldAdapterId[] {
+  const meta = yieldProtocolsMeta(env)
+  return (Object.keys(meta) as YieldAdapterId[]).filter(
+    (id) => meta[id].provider === provider
   )
 }

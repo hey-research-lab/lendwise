@@ -1,5 +1,5 @@
-import type { ProtocolName } from '@/config/protocols-meta'
-import { YIELD_ADAPTERS } from '@/config/protocols-server'
+import type { YieldAdapterId } from '@/config/protocols-meta'
+import { yieldAdapters } from '@/config/protocols-server'
 import { distinctProtocolAddresses } from '@/lib/db/repositories/products'
 import type { FetchOpts } from '@/lib/protocols/core/types'
 
@@ -18,12 +18,13 @@ import type { FetchOpts } from '@/lib/protocols/core/types'
  * `syncProviderProducts` reads as "the provider delisted its entire catalogue".
  */
 export async function catalogueFetchOpts(
-  ids: ProtocolName[],
+  ids: YieldAdapterId[],
   { activeOnly }: { activeOnly: boolean }
-): Promise<Map<ProtocolName, FetchOpts>> {
-  const out = new Map<ProtocolName, FetchOpts>()
+): Promise<Map<YieldAdapterId, FetchOpts>> {
+  const out = new Map<YieldAdapterId, FetchOpts>()
+  const adapters = yieldAdapters()
   for (const id of ids) {
-    const adapter = await YIELD_ADAPTERS[id]()
+    const adapter = await adapters[id]()
     if (adapter.ownsMarketDiscovery !== false) continue
     out.set(id, {
       poolIds: await distinctProtocolAddresses(
