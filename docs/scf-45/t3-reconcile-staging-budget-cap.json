@@ -1,0 +1,60 @@
+{
+  "id": "9741d145-2e44-46b5-8cc1-9ff77cdacff0",
+  "created_at": "2026-10-17T22:04:25.395342+00:00",
+  "window": "2026-10-10T22:00:00.000Z → 2026-10-17T22:00:00.000Z",
+  "days": 7,
+  "durationMs": 92413,
+  "detected": {
+    "missing": 77,
+    "incomplete": 1,
+    "markedStale": 1,
+    "collectedProducts": 956
+  },
+  "repaired": {
+    "noDonor": 66,
+    "written": 12,
+    "byRefetch": 0,
+    "byNeighbor": 12,
+    "perProvider": {
+      "blend": { "gaps": 6, "byRefetch": 0, "byNeighbor": 6 },
+      "stellar": { "gaps": 72, "byRefetch": 0, "byNeighbor": 6 }
+    }
+  },
+  "fetch": {
+    "failed": 2,
+    "returned": 0,
+    "requested": 2,
+    "failuresSample": [
+      {
+        "reason": "Hubble query failed: Query exceeded limit for bytes billed: 21474836480. 588237504512 or higher required.",
+        "productId": "stellar:fixture:stellar:reserve:cbakazuejbafa2dcgbrs2wkjt3fnimjbhtfl76ay7xmaveinqnniqwao:ccw67tszv3sss2hxmbq5jfgckjnxkzm7uquwuzputhxstzleo7sjmi75:supply"
+      },
+      {
+        "reason": "Hubble query failed: Query exceeded limit for bytes billed: 21474836480. 586533568512 or higher required.",
+        "productId": "blend:v2.1:stellar:pool:cbakazuejbafa2dcgbrs2wkjt3fnimjbhtfl76ay7xmaveinqnniqwao:ccw67tszv3sss2hxmbq5jfgckjnxkzm7uquwuzputhxstzleo7sjmi75:supply"
+      }
+    ]
+  },
+  "families": {
+    "evm": {
+      "gaps": 0,
+      "fetch": { "failed": 0, "returned": 0, "requested": 0 },
+      "adapters": [
+        { "id": "aave_v3", "provider": "aave", "hasHistory": true },
+        { "id": "morpho_v1", "provider": "morpho", "hasHistory": true },
+        { "id": "compound_v3", "provider": "compound", "hasHistory": true }
+      ],
+      "repaired": { "noDonor": 0, "byRefetch": 0, "byNeighbor": 0 }
+    },
+    "stellar": {
+      "gaps": 78,
+      "fetch": { "failed": 2, "returned": 0, "requested": 2 },
+      "adapters": [
+        { "id": "blend_v2.1", "provider": "blend", "hasHistory": true },
+        { "id": "stellar_fixture", "provider": "stellar", "hasHistory": true }
+      ],
+      "repaired": { "noDonor": 66, "byRefetch": 0, "byNeighbor": 12 }
+    }
+  },
+  "errors": []
+}
