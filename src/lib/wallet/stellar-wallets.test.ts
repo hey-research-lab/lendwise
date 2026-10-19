@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { StellarSession, Wallet } from '@/stores/walletStore'
 
 import {
+  activeWalletUpdatesWithoutEvm,
   currentStellarSession,
   isDisplayableActive,
   restoredStellarWalletUpdate,
@@ -173,5 +174,95 @@ describe('currentStellarSession', () => {
     ).toBe(live)
     expect(currentStellarSession([wallet()], NOW)).toBeNull()
     expect(currentStellarSession([], NOW)).toBeNull()
+  })
+})
+
+describe('activeWalletUpdatesWithoutEvm', () => {
+  const evm = (overrides: Partial<Wallet> = {}) =>
+    wallet({ address: '0xabc', chainFamily: 'evm', ...overrides })
+
+  it('hands the active slot back to the Stellar session once the EVM wallet is gone', () => {
+    // Connecting MetaMask deactivated the Stellar wallet; MetaMask then left.
+    const wallets = [
+      evm(),
+      wallet({
+        isActive: false,
+        isCurrentlyConnected: false,
+        stellarSession: session('GAAA'),
+      }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(wallets, NOW)).toEqual([
+      {
+        address: '0xabc',
+        update: { isActive: false, isCurrentlyConnected: false },
+      },
+      {
+        address: 'GAAA',
+        update: {
+          isActive: true,
+          isCurrentlyConnected: true,
+          isConnected: true,
+        },
+      },
+    ])
+  })
+
+  it('changes nothing once the session owner is the active wallet', () => {
+    const wallets = [
+      evm({ isActive: false, isCurrentlyConnected: false }),
+      wallet({ stellarSession: session('GAAA') }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(wallets, NOW)).toEqual([])
+  })
+
+  it('activates no Stellar wallet without a live session', () => {
+    const wallets = [
+      evm(),
+      wallet({
+        isActive: false,
+        isCurrentlyConnected: false,
+        stellarSession: session('GAAA', { expiresAt: NOW }),
+      }),
+      wallet({
+        address: 'GBBB',
+        isActive: false,
+        isCurrentlyConnected: false,
+      }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(wallets, NOW)).toEqual([
+      {
+        address: '0xabc',
+        update: { isActive: false, isCurrentlyConnected: false },
+      },
+    ])
+  })
+
+  it('activates only the wallet whose session the cookie holds', () => {
+    const wallets = [
+      wallet({
+        address: 'GAAA',
+        stellarSession: session('GAAA', { issuedAt: NOW - 500 }),
+      }),
+      wallet({
+        address: 'GBBB',
+        isActive: false,
+        isCurrentlyConnected: false,
+        stellarSession: session('GBBB', { issuedAt: NOW - 10 }),
+      }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(wallets, NOW)).toEqual([
+      {
+        address: 'GAAA',
+        update: { isActive: false, isCurrentlyConnected: false },
+      },
+      {
+        address: 'GBBB',
+        update: {
+          isActive: true,
+          isCurrentlyConnected: true,
+          isConnected: true,
+        },
+      },
+    ])
   })
 })

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { ArrowLeft, History } from 'lucide-react'
+import posthog from 'posthog-js'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -107,7 +108,7 @@ export function BridgeWidget({
     initialSourceChainId,
     linkAmountInvalid,
   })
-  const { connectStellar } = useStellarWallet()
+  const { connectStellar, disconnectStellar } = useStellarWallet()
   const { openConnectModal } = useConnectModal()
   const [historyOpen, setHistoryOpen] = useState(false)
   const { balances, refetch } = useUsdcBalances(flow.chains, flow.evmAddress)
@@ -321,6 +322,14 @@ export function BridgeWidget({
             stellarBalance={stellarUsdcBalance(flow.preflight)}
             explorerUrl={explorerUrl}
             onStellarSignIn={() => void connectStellar()}
+            onStellarSignOut={() => {
+              if (!stellarAddress) return
+              posthog.capture('wallet_disconnected', {
+                chain_family: 'stellar',
+                source: 'bridge',
+              })
+              void disconnectStellar(stellarAddress)
+            }}
             pendingBurn={pendingBurn}
             cta={formButton}
             onCta={onFormButton}

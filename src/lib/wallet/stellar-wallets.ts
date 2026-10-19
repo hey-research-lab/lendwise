@@ -43,6 +43,53 @@ export function currentStellarSession(
 }
 
 /**
+ * Store updates for when no EVM wallet is connected. Connecting an EVM wallet
+ * deactivates the Stellar one but leaves its session alive; when the EVM wallet
+ * goes away, the navbar and the portfolio would show nobody signed in while the
+ * bridge still shows the session's account. The wallet whose session the cookie
+ * holds takes the active slot back; every other EVM or Stellar wallet leaves it.
+ */
+export function activeWalletUpdatesWithoutEvm(
+  wallets: readonly Pick<
+    Wallet,
+    | 'address'
+    | 'chainFamily'
+    | 'isActive'
+    | 'isConnected'
+    | 'isCurrentlyConnected'
+    | 'stellarSession'
+  >[],
+  now: number = Math.floor(Date.now() / 1000)
+): { address: string; update: Partial<Wallet> }[] {
+  const session = currentStellarSession(wallets, now)
+  const updates: { address: string; update: Partial<Wallet> }[] = []
+  for (const w of wallets) {
+    if (w.chainFamily !== 'evm' && w.chainFamily !== 'stellar') continue
+    const owner =
+      session !== null &&
+      w.chainFamily === 'stellar' &&
+      w.address === session.address
+    if (owner) {
+      if (!w.isActive || !w.isCurrentlyConnected || !w.isConnected)
+        updates.push({
+          address: w.address,
+          update: {
+            isActive: true,
+            isCurrentlyConnected: true,
+            isConnected: true,
+          },
+        })
+    } else if (w.isActive || w.isCurrentlyConnected) {
+      updates.push({
+        address: w.address,
+        update: { isActive: false, isCurrentlyConnected: false },
+      })
+    }
+  }
+  return updates
+}
+
+/**
  * Fail closed: skip clearing the server session only when it is known to
  * belong to a different address.
  */

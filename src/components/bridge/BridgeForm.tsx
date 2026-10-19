@@ -70,6 +70,7 @@ export interface BridgeFormProps {
   stellarBalance: string | null
   explorerUrl: string
   onStellarSignIn: () => void
+  onStellarSignOut: () => void
   pendingBurn: { hash: string; url: string | null } | null
   cta: Cta<FormAction>
   onCta: () => void
@@ -143,6 +144,8 @@ export function BridgeForm(p: BridgeFormProps) {
             address={p.stellarAddress}
             explorerUrl={p.explorerUrl}
             onSignIn={p.onStellarSignIn}
+            onSignOut={p.onStellarSignOut}
+            signOutDisabled={p.disabled}
           />
         }
         asset={<AssetPill slug="stellar" label="USDC on Stellar" />}
