@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Check, Copy, LogIn, MoreVertical, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Address } from 'viem'
 import { useAccount, useDisconnect, useEnsName } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
@@ -19,14 +20,16 @@ import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySe
 import { useStellarWallet } from '@/contexts/StellarWalletContext'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { formatAddress } from '@/lib/utils'
-import { walletSubtitle } from '@/lib/wallet/wallet-label'
+import { expectReconnect, reconnectHint } from '@/lib/wallet/reconnect'
+import { walletRowMenu, walletSubtitle } from '@/lib/wallet/wallet-label'
 import { type Wallet, useWalletStore } from '@/stores/walletStore'
 
 import { WalletAvatar } from '../wallet/WalletAvatar'
 
 const WalletRow = ({ wallet }: { wallet: Wallet }) => {
-  const { address: activeAddress } = useAccount()
+  const { address: activeAddress, connector } = useAccount()
   const { disconnect } = useDisconnect()
+  const { openConnectModal } = useConnectModal()
   const { updateWallet, clients, wallets } = useWalletStore()
   const { disconnectAddress } = useMultiWalletManager()
   const { connectStellar, disconnectStellar } = useStellarWallet()
@@ -49,6 +52,32 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
     setTimeout(() => {
       setCopiedAddress(null)
     }, 2000)
+  }
+
+  // The wallet connects the account it is open on: the row's address is
+  // recorded so a different account gets a hint (WalletWatcher, connectStellar).
+  const handleConnect = () => {
+    if (wallet.chainFamily === 'stellar') {
+      expectReconnect(wallet.address, 'stellar')
+      void connectStellar()
+      return
+    }
+    if (openConnectModal) {
+      expectReconnect(wallet.address, 'evm')
+      openConnectModal()
+      return
+    }
+    // Already connected on another account: RainbowKit has no connect window
+    // then, switching accounts happens in the wallet.
+    const hint = activeAddress
+      ? reconnectHint({
+          expected: wallet.address,
+          actual: activeAddress,
+          family: 'evm',
+          walletName: connector?.name ?? 'Your wallet',
+        })
+      : null
+    if (hint) toast.info(hint)
   }
 
   const handleDisconnect = () => {
@@ -74,7 +103,7 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   const displayName = wallet.ens || formatAddress(wallet.address)
   const hasClient = !!clients[wallet.address.toLowerCase()]
   const isStellar = wallet.chainFamily === 'stellar'
-  const isSignedOutStellar = isStellar && !wallet.isConnected
+  const menu = walletRowMenu(wallet, hasClient)
 
   return (
     <div
@@ -115,10 +144,10 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {isSignedOutStellar && (
-              <DropdownMenuItem onClick={() => connectStellar()}>
+            {menu.connect && (
+              <DropdownMenuItem onClick={handleConnect}>
                 <LogIn className="mr-2 h-4 w-4" />
-                Sign in
+                {menu.connect}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
@@ -126,7 +155,7 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
               className="text-destructive focus:text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              {isSignedOutStellar ? 'Remove' : 'Disconnect'}
+              {menu.remove}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

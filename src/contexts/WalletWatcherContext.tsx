@@ -3,13 +3,15 @@
 import { useEffect } from 'react'
 
 import { getEnsName } from '@wagmi/core'
+import { toast } from 'sonner'
 import type { Address } from 'viem'
-import { useAccount, useConfig } from 'wagmi'
+import { useAccount, useAccountEffect, useConfig } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { identifyWallet } from '@/lib/analytics/identifyWallet'
 import { formatAddress } from '@/lib/utils'
+import { reconnectHint, takeExpectedReconnect } from '@/lib/wallet/reconnect'
 import { activeWalletUpdatesWithoutEvm } from '@/lib/wallet/stellar-wallets'
 import { type Wallet, useWalletStore } from '@/stores/walletStore'
 
@@ -54,6 +56,20 @@ export function WalletWatcherProvider({
       updateWallet(address, update)
     }
   }, [status, wallets, updateWallet])
+
+  // A wallet-list row asked to reconnect its address: say so when the wallet
+  // connected another account instead.
+  useAccountEffect({
+    onConnect({ address, connector }) {
+      const hint = reconnectHint({
+        expected: takeExpectedReconnect('evm'),
+        actual: address,
+        family: 'evm',
+        walletName: connector.name,
+      })
+      if (hint) toast.info(hint)
+    },
+  })
 
   // Helper function to add a wallet
   const addWalletToStore = async (walletAddress: string, isActive = false) => {
