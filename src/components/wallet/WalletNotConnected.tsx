@@ -2,10 +2,17 @@
 
 import { useState } from 'react'
 
+import Image from 'next/image'
+
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { ArrowRight, Lock, Shield, TrendingUp, Wallet, Zap } from 'lucide-react'
 import { motion } from 'motion/react'
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
 import { useStellarWallet } from '@/contexts/StellarWalletContext'
 
@@ -27,10 +34,57 @@ const FEATURES = [
   },
 ]
 
-const SUPPORTED = ['MetaMask', 'WalletConnect', 'Coinbase', 'Rabby']
+interface SupportedWallet {
+  name: string
+  logo: string
+}
+
+/** Logos in public/wallets: RainbowKit's for EVM, Stellar Wallets Kit's for Stellar. */
+const SUPPORTED: { family: string; wallets: SupportedWallet[] }[] = [
+  {
+    family: 'EVM',
+    wallets: [
+      { name: 'MetaMask', logo: '/wallets/metamask.svg' },
+      { name: 'Rabby', logo: '/wallets/rabby.svg' },
+      { name: 'Coinbase Wallet', logo: '/wallets/coinbase.svg' },
+      { name: 'WalletConnect', logo: '/wallets/walletconnect.svg' },
+    ],
+  },
+  {
+    family: 'Stellar',
+    wallets: [
+      { name: 'Freighter', logo: '/wallets/freighter.png' },
+      { name: 'xBull', logo: '/wallets/xbull.png' },
+      { name: 'LOBSTR', logo: '/wallets/lobstr.png' },
+      { name: 'Albedo', logo: '/wallets/albedo.png' },
+    ],
+  },
+]
+
+function WalletLogo({ name, logo }: SupportedWallet) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className="border-border bg-secondary/30 hover:border-primary/40 focus-visible:border-primary/40 flex size-10 items-center justify-center rounded-lg border transition-colors outline-none"
+        >
+          <Image
+            src={logo}
+            alt={name}
+            width={26}
+            height={26}
+            unoptimized
+            className="rounded-md"
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{name}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 export function WalletNotConnected() {
-  const [hoveredWallet, setHoveredWallet] = useState<string | null>(null)
   const [showNetworkDialog, setShowNetworkDialog] = useState(false)
 
   const { openConnectModal } = useConnectModal()
@@ -82,23 +136,27 @@ export function WalletNotConnected() {
           </button>
 
           {/* Supported wallets */}
-          <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-3">
             <span className="text-muted-foreground text-xs tracking-wider uppercase">
               Supports
             </span>
-            {SUPPORTED.map((w) => (
-              <span
-                key={w}
-                onMouseEnter={() => setHoveredWallet(w)}
-                onMouseLeave={() => setHoveredWallet(null)}
-                className={`cursor-default rounded-md border px-2.5 py-1 text-xs transition-colors ${
-                  hoveredWallet === w
-                    ? 'border-primary/40 bg-primary/10 text-foreground'
-                    : 'border-border bg-secondary/30 text-muted-foreground'
-                }`}
+            {SUPPORTED.map((group, i) => (
+              <div
+                key={group.family}
+                role="group"
+                aria-label={`${group.family} wallets`}
+                className="flex items-center gap-2"
               >
-                {w}
-              </span>
+                {i > 0 && (
+                  <span
+                    className="bg-border mr-1 hidden h-5 w-px sm:block"
+                    aria-hidden
+                  />
+                )}
+                {group.wallets.map((w) => (
+                  <WalletLogo key={w.name} {...w} />
+                ))}
+              </div>
             ))}
           </div>
         </motion.div>

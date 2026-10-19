@@ -10,6 +10,7 @@ import { mainnet } from 'wagmi/chains'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { identifyWallet } from '@/lib/analytics/identifyWallet'
 import { formatAddress } from '@/lib/utils'
+import { activeWalletUpdatesWithoutEvm } from '@/lib/wallet/stellar-wallets'
 import { type Wallet, useWalletStore } from '@/stores/walletStore'
 
 /**
@@ -22,7 +23,7 @@ export function WalletWatcherProvider({
   children: React.ReactNode
 }) {
   const config = useConfig()
-  const { address, isConnected, chain, connector } = useAccount()
+  const { address, isConnected, chain, connector, status } = useAccount()
   const { addWallets, hasWallet, updateWallet, wallets } = useWalletStore()
   const { addOrUpdateClient } = useMultiWalletManager()
 
@@ -44,6 +45,15 @@ export function WalletWatcherProvider({
       }
     })
   }, [address, isConnected, wallets, updateWallet])
+
+  // Without an EVM wallet, the active slot goes back to the Stellar session.
+  // Only once wagmi has settled: on load it reconnects with no address yet.
+  useEffect(() => {
+    if (status !== 'disconnected') return
+    for (const { address, update } of activeWalletUpdatesWithoutEvm(wallets)) {
+      updateWallet(address, update)
+    }
+  }, [status, wallets, updateWallet])
 
   // Helper function to add a wallet
   const addWalletToStore = async (walletAddress: string, isActive = false) => {

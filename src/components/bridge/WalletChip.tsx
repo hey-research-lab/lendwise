@@ -3,7 +3,7 @@
 import Image from 'next/image'
 
 import { useAccountModal, useConnectModal } from '@rainbow-me/rainbowkit'
-import { ChevronRight, Copy, ExternalLink, Wallet } from 'lucide-react'
+import { ChevronRight, Copy, ExternalLink, LogOut, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 
@@ -12,6 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { formatAddress } from '@/lib/utils'
@@ -65,16 +66,23 @@ export function EvmWalletChip() {
 /**
  * Receive: the signed-in Stellar account, or the way to sign in. Switching
  * accounts stays in the navbar: a second sign-in path here could set the
- * account on screen apart from the session cookie.
+ * account on screen apart from the session cookie. Signing out is offered
+ * here because the session outlives the wallet: a locked wallet still shows
+ * its account until the session is revoked.
  */
 export function StellarWalletChip({
   address,
   explorerUrl,
   onSignIn,
+  onSignOut,
+  signOutDisabled,
 }: {
   address: string | null
   explorerUrl: string
   onSignIn: () => void
+  onSignOut: () => void
+  /** An action runs: signing out would cut it short. */
+  signOutDisabled: boolean
 }) {
   if (!address) {
     return (
@@ -114,6 +122,11 @@ export function StellarWalletChip({
             <ExternalLink className="size-4" />
             View on Stellar Expert
           </a>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={signOutDisabled} onSelect={onSignOut}>
+          <LogOut className="size-4" />
+          Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
