@@ -7,7 +7,6 @@ import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import {
   AlertTriangle,
   ArrowLeftRight,
-  ArrowUpRightFromSquare,
   CheckCircle2,
   ChevronRight,
   Search,
@@ -22,7 +21,9 @@ import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { BorrowingOptimizerView } from '@/components/optimizer/BorrowingOptimizerButton'
 import { ProductDetailDrawer } from '@/components/products/ProductDetailDrawer'
+import { ProductRowActions } from '@/components/products/ProductRowActions'
 import { RewardApyCell } from '@/components/products/RewardApyCell'
+import { StellarBridgeBanner } from '@/components/products/StellarBridgeBanner'
 import { TableSkeleton } from '@/components/products/TableSkeleton'
 import { StatsBar } from '@/components/stats/StatsBar'
 import {
@@ -76,6 +77,8 @@ import {
   formatRateRange,
   pluralize,
 } from '@/lib/product-stats'
+import { isStellarNetworkFiltered } from '@/lib/products/bridge-entry'
+import { rankProducts } from '@/lib/products/ranking'
 import {
   BORROW_FILTERS_KEY,
   fieldValue,
@@ -407,19 +410,9 @@ const createColumns = (
   },
   {
     id: 'actions',
-    size: 80,
-    minSize: 80,
-    cell: ({ row }) =>
-      row.original.link ? (
-        <a
-          target="_blank"
-          rel="noopener noreferrer"
-          href={row.original.link}
-          className="flex w-full items-center justify-center"
-        >
-          <ArrowUpRightFromSquare size={15} />
-        </a>
-      ) : null,
+    size: 96,
+    minSize: 96,
+    cell: ({ row }) => <ProductRowActions product={row.original} />,
   },
 ]
 
@@ -494,8 +487,12 @@ export function BorrowTableClient() {
     // rather than coalesced to 0 in the comparator: a coalesced 0 sorts
     // first, auto-selecting "the cheapest credit available" from a rate we
     // never actually measured.
-    const sorted = [...filtered].sort((a, b) => a.apy! - b.apy!)
-    const top3 = sorted.slice(0, 3)
+    const top3 = rankProducts(filtered, {
+      apyKey: 'apy',
+      order: 'asc',
+      tvlKey: 'assetAmountUsd',
+      idKey: 'productId',
+    }).slice(0, 3)
     if (top3.length === 0) return
 
     const newTopIds = new Set(top3.map(getRowId))
@@ -611,6 +608,15 @@ export function BorrowTableClient() {
   const visibleMarkets = withHorizonData.filter((m) =>
     matchesFilters(m, tableFilters, horizon)
   )
+
+  // The table's default order — cheapest first. TanStack's sort on the rate
+  // column is stable, so these tie-breaks (depth, then product id) survive it.
+  const rankedMarkets = rankProducts(visibleMarkets, {
+    apyKey: HORIZON_CONFIG[horizon].apyKey as keyof BorrowProduct,
+    order: 'asc',
+    tvlKey: 'assetAmountUsd',
+    idKey: 'productId',
+  })
 
   const selectedData = visibleMarkets.filter(
     (row) => rowSelection[getRowId(row)]
@@ -1168,6 +1174,8 @@ export function BorrowTableClient() {
         </div>
       </div>
 
+      {isStellarNetworkFiltered(columnFilters) && <StellarBridgeBanner />}
+
       <DataTable
         key={horizon}
         fillHeight
@@ -1197,7 +1205,7 @@ export function BorrowTableClient() {
           },
         ]}
         columns={columns}
-        data={visibleMarkets}
+        data={rankedMarkets}
         initialSorting={[{ id: sortColumn, desc: false }]}
         getRowId={getRowId}
         hideToolbar={true}

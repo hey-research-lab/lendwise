@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { verifyStellarChallenge } from '@/lib/auth/stellar-sep10'
+import { checkSameOrigin } from '@/lib/auth/same-origin'
+import {
+  allowedDomains,
+  verifyStellarChallenge,
+} from '@/lib/auth/stellar-sep10'
 import { clientIp, stellarAuthLimiter } from '@/lib/ratelimit'
 
 /**
  * SEP-10 verification: the wallet-signed challenge comes back here. On
  * success the session is set as an httpOnly cookie — the client never holds
  * the token — and `/api/auth/stellar/session` reads it back after a refresh.
+ *
+ * Same-origin JSON only (same-origin.ts): a cross-site form could otherwise
+ * post an attacker's signed challenge and plant their session in this
+ * browser, and the bridge would then burn to the attacker's account.
  */
 export async function POST(request: NextRequest) {
+  const site = checkSameOrigin(request, allowedDomains())
+  if (!site.ok)
+    return NextResponse.json({ error: site.error }, { status: site.status })
+
   const { success, retryAfter } = await stellarAuthLimiter.limit(
     clientIp(request.headers)
   )

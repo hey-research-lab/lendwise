@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
+import Link from 'next/link'
+
 import {
+  ArrowLeftRight,
   BarChart3,
   CheckCircle2,
   Flame,
@@ -26,6 +29,7 @@ import {
   optimizeVaults,
 } from '@/lib/api/optimizer'
 import { formatCompactCurrency } from '@/lib/format-currency'
+import { allocationBridgeHref } from '@/lib/products/bridge-entry'
 import type { SupplyProduct } from '@/types'
 
 // ============================================================================
@@ -437,26 +441,42 @@ export function SupplyingOptimizerView({
 
                 {/* Legend */}
                 <div className="space-y-2">
-                  {results.map((r, i) => (
-                    <div
-                      key={r.vault.poolName}
-                      className="flex items-center gap-2"
-                    >
-                      <div
-                        className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                        style={{
-                          background:
-                            ALLOCATION_COLORS[i % ALLOCATION_COLORS.length],
-                        }}
-                      />
-                      <span className="text-foreground flex-1 truncate text-[11px]">
-                        {r.vault.poolName}
-                      </span>
-                      <span className="text-muted-foreground font-mono text-[11px]">
-                        {r.allocationPercent.toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
+                  {results.map((r, i) => {
+                    // A Stellar USDC venue is reached through the CCTP bridge,
+                    // with the allocated amount pre-filled.
+                    const bridge = allocationBridgeHref(
+                      r.vault,
+                      (amountNum * r.allocationPercent) / 100
+                    )
+                    return (
+                      <div key={r.vault.poolName} className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                            style={{
+                              background:
+                                ALLOCATION_COLORS[i % ALLOCATION_COLORS.length],
+                            }}
+                          />
+                          <span className="text-foreground flex-1 truncate text-[11px]">
+                            {r.vault.poolName}
+                          </span>
+                          <span className="text-muted-foreground font-mono text-[11px]">
+                            {r.allocationPercent.toFixed(0)}%
+                          </span>
+                        </div>
+                        {bridge && (
+                          <Link
+                            href={bridge.href}
+                            className="text-primary ml-4.5 inline-flex items-center gap-1 text-[11px] hover:underline"
+                          >
+                            <ArrowLeftRight className="h-3 w-3" />
+                            Bridge {bridge.amount} USDC to Stellar
+                          </Link>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* Summary */}

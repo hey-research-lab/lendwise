@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
 import { collectApySpot } from '@/app/actions/apy-snapshots.actions'
-import { PROTOCOLS_META, type ProtocolName } from '@/config/protocols-meta'
+import {
+  type YieldAdapterId,
+  yieldProtocolsMeta,
+} from '@/config/protocols-meta'
 import { spotStatus } from '@/lib/apy-spot-status'
 
 /**
@@ -13,7 +16,7 @@ import { spotStatus } from '@/lib/apy-spot-status'
  * (one rolling-average row per product per hour).
  *
  * Body (JSON):
- *   protocol (optional): an adapter id declared in PROTOCOLS_META.
+ *   protocol (optional): an adapter id declared in PROTOCOLS_META (or the Stellar fixture's yield face where enabled).
  *   If omitted, EVERY registered protocol is collected — which is how QStash
  *   calls it: one schedule, no body, every 10 minutes. A protocol added to
  *   PROTOCOLS_META is collected without touching Upstash.
@@ -33,17 +36,18 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   const body = await req.json().catch(() => ({}))
   const protocol = body.protocol as string | undefined
 
-  if (protocol && !(protocol in PROTOCOLS_META)) {
+  const known = yieldProtocolsMeta()
+  if (protocol && !(protocol in known)) {
     return NextResponse.json(
       {
-        error: `Invalid protocol: "${protocol}". Supported: ${Object.keys(PROTOCOLS_META).join(', ')}`,
+        error: `Invalid protocol: "${protocol}". Supported: ${Object.keys(known).join(', ')}`,
       },
       { status: 400 }
     )
   }
 
   try {
-    const result = await collectApySpot(protocol as ProtocolName | undefined)
+    const result = await collectApySpot(protocol as YieldAdapterId | undefined)
 
     return NextResponse.json(result, { status: spotStatus(result) })
   } catch (err) {

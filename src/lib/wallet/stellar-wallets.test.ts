@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { StellarSession, Wallet } from '@/stores/walletStore'
 
 import {
+  currentStellarSession,
   isDisplayableActive,
   restoredStellarWalletUpdate,
   shouldClearStellarSession,
@@ -138,5 +139,39 @@ describe('signedInDuringRestore', () => {
       )
     ).toBe(true)
     expect(signedInDuringRestore(before, wallet())).toBe(false)
+  })
+})
+
+describe('currentStellarSession', () => {
+  it('picks the newest unexpired Stellar session, the one the cookie holds', () => {
+    const older = session('GAAA', { issuedAt: NOW - 500 })
+    const newer = session('GBBB', { issuedAt: NOW - 10 })
+    const wallets = [
+      wallet({ address: 'GAAA', stellarSession: older }),
+      wallet({ address: 'GBBB', stellarSession: newer }),
+    ]
+    expect(currentStellarSession(wallets, NOW)).toBe(newer)
+    expect(currentStellarSession([...wallets].reverse(), NOW)).toBe(newer)
+  })
+
+  it('skips expired sessions and non-Stellar wallets', () => {
+    const expired = session('GBBB', { issuedAt: NOW - 10, expiresAt: NOW })
+    const live = session('GAAA', { issuedAt: NOW - 500 })
+    expect(
+      currentStellarSession(
+        [
+          wallet({ address: 'GAAA', stellarSession: live }),
+          wallet({ address: 'GBBB', stellarSession: expired }),
+          wallet({
+            address: '0xabc',
+            chainFamily: 'evm',
+            stellarSession: session('0xabc', { issuedAt: NOW }),
+          }),
+        ],
+        NOW
+      )
+    ).toBe(live)
+    expect(currentStellarSession([wallet()], NOW)).toBeNull()
+    expect(currentStellarSession([], NOW)).toBeNull()
   })
 })

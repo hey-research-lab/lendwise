@@ -1,7 +1,7 @@
 'use server'
 
-import { type ProtocolName } from '@/config/protocols-meta'
-import { YIELD_ADAPTERS } from '@/config/protocols-server'
+import type { YieldAdapterId } from '@/config/protocols-meta'
+import { yieldAdapters } from '@/config/protocols-server'
 import { upsertHourlySlots } from '@/lib/db/repositories/apy'
 import type { SpotPayload } from '@/lib/db/types'
 import { catalogueFetchOpts } from '@/lib/protocols/core/catalogue-opts'
@@ -58,7 +58,7 @@ async function writeApySlot(
 
 export type CollectApyResult = {
   success: boolean
-  counts: Partial<Record<ProtocolName, number>> & { total: number }
+  counts: Partial<Record<YieldAdapterId, number>> & { total: number }
   errors: string[]
   durationMs: number
 }
@@ -77,14 +77,15 @@ export type CollectApyResult = {
  *   (scripts/collect-apy.ts verification mode).
  */
 export async function collectApySpot(
-  protocol?: ProtocolName,
+  protocol?: YieldAdapterId,
   opts?: { dryRun?: boolean }
 ): Promise<CollectApyResult> {
   const start = Date.now()
   const slotTime = new Date()
   const errors: string[] = []
 
-  const ids = (Object.keys(YIELD_ADAPTERS) as ProtocolName[]).filter(
+  const adapters = yieldAdapters()
+  const ids = (Object.keys(adapters) as YieldAdapterId[]).filter(
     (id) => !protocol || id === protocol
   )
 
@@ -104,13 +105,11 @@ export async function collectApySpot(
   const fetchOpts = await catalogueFetchOpts(ids, { activeOnly: true })
 
   const results = await Promise.allSettled(
-    ids.map(async (id) =>
-      (await YIELD_ADAPTERS[id]()).getApySpot(fetchOpts.get(id))
-    )
+    ids.map(async (id) => (await adapters[id]()).getApySpot(fetchOpts.get(id)))
   )
 
   const allPayloads: SpotPayload[] = []
-  const protoCounts: Partial<Record<ProtocolName, number>> = {}
+  const protoCounts: Partial<Record<YieldAdapterId, number>> = {}
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]

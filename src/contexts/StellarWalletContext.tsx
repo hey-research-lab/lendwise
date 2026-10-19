@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
+import type { Networks } from '@creit-tech/stellar-wallets-kit'
+
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { stellarNetwork } from '@/config/stellar-network'
 import { identifyWallet } from '@/lib/analytics/identifyWallet'
 import { formatAddress } from '@/lib/utils'
 import {
@@ -24,6 +27,11 @@ import type { StellarSession, Wallet } from '@/stores/walletStore'
 interface StellarWalletContextType {
   connectStellar: () => Promise<void>
   disconnectStellar: (address: string) => Promise<void>
+  /**
+   * Signs `xdr` with the connected wallet for this deployment's network.
+   * Throws when the wallet's current address is not `address`.
+   */
+  signTransaction: (xdr: string, address: string) => Promise<string>
   isConnecting: boolean
   error: string | null
 }
@@ -81,6 +89,7 @@ const SIGNS_IN_A_POPUP = new Set(['albedo'])
 
 interface SignPrompt {
   walletName: string
+  purpose: 'sign-in' | 'transaction'
   resolve: () => void
   reject: (error: Error) => void
 }
@@ -124,11 +133,10 @@ async function validateSep10Challenge({
   address: string
   challenge: Sep10ChallengeResponse
 }): Promise<void> {
-  const { Keypair, Networks, Transaction } =
-    await import('@stellar/stellar-sdk')
-  // Mainnet only, like the server (lib/auth/stellar-sep10.ts): a challenge for
-  // any other passphrase is refused before the wallet is asked to sign it.
-  if (challenge.networkPassphrase !== Networks.PUBLIC) {
+  const { Keypair, Transaction } = await import('@stellar/stellar-sdk')
+  // The deployment's network, like the server (lib/auth/stellar-sep10.ts): a
+  // challenge for any other passphrase is refused before the wallet signs it.
+  if (challenge.networkPassphrase !== stellarNetwork().passphrase) {
     throw new Error(
       'Challenge network does not match configured Stellar network'
     )
@@ -195,9 +203,12 @@ export function StellarWalletProvider({
   const [signPrompt, setSignPrompt] = useState<SignPrompt | null>(null)
 
   /** Resolves when the user clicks "Sign", rejects if they cancel. */
-  const confirmSigning = (walletName: string) =>
+  const confirmSigning = (
+    walletName: string,
+    purpose: SignPrompt['purpose'] = 'sign-in'
+  ) =>
     new Promise<void>((resolve, reject) =>
-      setSignPrompt({ walletName, resolve, reject })
+      setSignPrompt({ walletName, purpose, resolve, reject })
     )
 
   const { addWallets, updateWallet, removeWallet } = useWalletStore()
@@ -206,7 +217,7 @@ export function StellarWalletProvider({
     // Dynamically initialize the Stellar Wallets Kit on the client side
     const initKit = async () => {
       try {
-        const { StellarWalletsKit, Networks } =
+        const { StellarWalletsKit } =
           await import('@creit-tech/stellar-wallets-kit')
         const { AlbedoModule } =
           await import('@creit-tech/stellar-wallets-kit/modules/albedo')
@@ -218,7 +229,7 @@ export function StellarWalletProvider({
           await import('@creit-tech/stellar-wallets-kit/modules/xbull')
 
         StellarWalletsKit.init({
-          network: Networks.PUBLIC,
+          network: stellarNetwork().passphrase as Networks,
           theme: SWK_THEME,
           modules: [
             new AlbedoModule(),
@@ -331,13 +342,18 @@ export function StellarWalletProvider({
       updateWallet(address, newWallet)
       identifyWallet({ address, chainFamily: 'stellar' })
 
-      // Deselect other active wallets
+      // Deselect other active wallets. The server holds one session cookie,
+      // so signing in signs every other Stellar wallet out, as the restore does.
       const allWallets = useWalletStore.getState().wallets
       allWallets.forEach((w) => {
         if (w.address !== address) {
           updateWallet(w.address, {
             isActive: false,
             isCurrentlyConnected: false,
+            ...(w.chainFamily === 'stellar' && {
+              isConnected: false,
+              stellarSession: undefined,
+            }),
           })
         }
       })
@@ -374,33 +390,74 @@ export function StellarWalletProvider({
     }
   }
 
+  const signTransaction = async (
+    xdr: string,
+    address: string
+  ): Promise<string> => {
+    const { StellarWalletsKit } =
+      await import('@creit-tech/stellar-wallets-kit')
+    const current = await StellarWalletsKit.getAddress()
+      .then((r) => r.address)
+      .catch(() => null)
+    if (!current) {
+      throw new Error('Reconnect your Stellar wallet to sign.')
+    }
+    if (current !== address) {
+      throw new Error(
+        `Your wallet is on ${formatAddress(current)}. Switch it to ${formatAddress(address)} to sign.`
+      )
+    }
+    const wallet = StellarWalletsKit.selectedModule
+    if (SIGNS_IN_A_POPUP.has(wallet.productId)) {
+      await confirmSigning(wallet.productName, 'transaction')
+    }
+    const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, {
+      networkPassphrase: stellarNetwork().passphrase,
+      address,
+    })
+    if (!signedTxXdr) {
+      throw new Error('Wallet did not return a signed transaction')
+    }
+    return signedTxXdr
+  }
+
   return (
     <StellarWalletContext.Provider
-      value={{ connectStellar, disconnectStellar, isConnecting, error }}
+      value={{
+        connectStellar,
+        disconnectStellar,
+        signTransaction,
+        isConnecting,
+        error,
+      }}
     >
       {children}
       <Dialog
         open={signPrompt !== null}
         onOpenChange={(open) => {
           if (open || !signPrompt) return
-          signPrompt.reject(new Error('Stellar sign-in cancelled'))
+          signPrompt.reject(new Error('Stellar signing cancelled'))
           setSignPrompt(null)
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Verify your wallet</DialogTitle>
+            <DialogTitle>
+              {signPrompt?.purpose === 'transaction'
+                ? 'Approve the transaction'
+                : 'Verify your wallet'}
+            </DialogTitle>
             <DialogDescription>
-              Sign a short challenge with {signPrompt?.walletName} to prove you
-              own this address. It is never sent to the Stellar network, so it
-              costs nothing.
+              {signPrompt?.purpose === 'transaction'
+                ? `Approve it in ${signPrompt.walletName}. It is sent to the Stellar network and costs a small XLM fee.`
+                : `Sign a short challenge with ${signPrompt?.walletName} to prove you own this address. It is never sent to the Stellar network, so it costs nothing.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
-                signPrompt?.reject(new Error('Stellar sign-in cancelled'))
+                signPrompt?.reject(new Error('Stellar signing cancelled'))
                 setSignPrompt(null)
               }}
             >

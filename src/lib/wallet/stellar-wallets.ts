@@ -25,6 +25,24 @@ export function restoredStellarWalletUpdate(
 }
 
 /**
+ * The session the server cookie holds: the newest unexpired Stellar session in
+ * the store. Each sign-in replaces the cookie, so an older session is dead even
+ * while its wallet still carries it (expiresAt and issuedAt are in epoch seconds).
+ */
+export function currentStellarSession(
+  wallets: readonly Pick<Wallet, 'chainFamily' | 'stellarSession'>[],
+  now: number = Math.floor(Date.now() / 1000)
+): StellarSession | null {
+  let current: StellarSession | null = null
+  for (const w of wallets) {
+    const s = w.stellarSession
+    if (w.chainFamily !== 'stellar' || !s || s.expiresAt <= now) continue
+    if (!current || s.issuedAt > current.issuedAt) current = s
+  }
+  return current
+}
+
+/**
  * Fail closed: skip clearing the server session only when it is known to
  * belong to a different address.
  */

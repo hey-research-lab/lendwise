@@ -1,0 +1,62 @@
+{
+  "id": "ed693236-26fe-4c19-9f0e-6c5572c752d4",
+  "window": "2026-10-10T23:00:00.000Z → 2026-10-17T23:00:00.000Z",
+  "families": {
+    "evm": {
+      "gaps": 0,
+      "fetch": {
+        "failed": 0,
+        "returned": 0,
+        "requested": 0
+      },
+      "adapters": [
+        {
+          "id": "aave_v3",
+          "provider": "aave",
+          "hasHistory": true
+        },
+        {
+          "id": "morpho_v1",
+          "provider": "morpho",
+          "hasHistory": true
+        },
+        {
+          "id": "compound_v3",
+          "provider": "compound",
+          "hasHistory": true
+        }
+      ],
+      "repaired": {
+        "noDonor": 0,
+        "byRefetch": 0,
+        "byNeighbor": 0
+      }
+    },
+    "stellar": {
+      "gaps": 78,
+      "fetch": {
+        "failed": 0,
+        "returned": 2,
+        "requested": 2
+      },
+      "adapters": [
+        {
+          "id": "blend_v2.1",
+          "provider": "blend",
+          "hasHistory": true
+        },
+        {
+          "id": "stellar_fixture",
+          "provider": "stellar",
+          "hasHistory": true
+        }
+      ],
+      "repaired": {
+        "noDonor": 0,
+        "byRefetch": 78,
+        "byNeighbor": 0
+      }
+    }
+  },
+  "created_at": "2026-10-17T23:02:53.57355+00:00"
+}

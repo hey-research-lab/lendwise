@@ -3,7 +3,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
 import { syncProducts } from '@/app/actions/products-sync.actions'
-import { PROTOCOLS_META, type ProtocolName } from '@/config/protocols-meta'
+import {
+  type YieldAdapterId,
+  yieldProtocolsMeta,
+} from '@/config/protocols-meta'
 
 /**
  * Pools sync endpoint.
@@ -41,7 +44,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   const protocol = body.protocol as string | undefined
 
   if (protocol) {
-    const validIds = Object.keys(PROTOCOLS_META)
+    const validIds = Object.keys(yieldProtocolsMeta())
     if (!validIds.includes(protocol)) {
       return NextResponse.json(
         {
@@ -53,7 +56,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   }
 
   try {
-    const result = await syncProducts(protocol as ProtocolName | undefined)
+    const result = await syncProducts(protocol as YieldAdapterId | undefined)
 
     return NextResponse.json(result, {
       status: result.success ? 200 : 207,

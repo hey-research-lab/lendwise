@@ -1,9 +1,11 @@
-import { defineChain, http } from 'viem'
+import { type Transport, defineChain, http } from 'viem'
 import type { Chain } from 'viem/chains'
 import {
   arbitrum,
+  arbitrumSepolia,
   avalanche,
   base,
+  baseSepolia,
   bsc,
   celo,
   linea,
@@ -12,12 +14,15 @@ import {
   optimism,
   polygon,
   scroll,
+  sepolia,
   unichain,
   zksync,
 } from 'viem/chains'
 
 import { isRpcProvider, rpcUrl } from '@/config/rpc-providers'
 import type { RpcNetwork, RpcProvider } from '@/config/rpc-providers'
+import type { StellarNetworkId } from '@/config/stellar-network'
+import { testnetTransport } from '@/config/testnet-rpc'
 import type { RegisteredChainId } from '@/lib/protocols/core/toolkit'
 
 /**
@@ -141,3 +146,33 @@ export const CHAINS = {
 export const CHAIN_TRANSPORTS = Object.fromEntries(
   TX_CHAINS.map((chain) => [chain.id, http(chain.rpc)])
 )
+
+/**
+ * Source chains of the CCTP bridge on the testnet staging. Wallet-only: no
+ * adapter reads them and `isTxSupported` stays false for them. Public RPCs
+ * (`TESTNET_RPC_URLS`): the provider keys are never sent to a testnet host.
+ */
+export const BRIDGE_TESTNET_CHAINS = [
+  sepolia,
+  baseSepolia,
+  arbitrumSepolia,
+] as const
+
+/** The chains wagmi offers the wallet on this deployment's network. */
+export function walletChains(network: StellarNetworkId): {
+  chains: readonly [Chain, ...Chain[]]
+  transports: Record<number, Transport>
+} {
+  if (network !== 'testnet') {
+    return { chains: ALL_CHAINS, transports: CHAIN_TRANSPORTS }
+  }
+  return {
+    chains: [...ALL_CHAINS, ...BRIDGE_TESTNET_CHAINS],
+    transports: {
+      ...CHAIN_TRANSPORTS,
+      ...Object.fromEntries(
+        BRIDGE_TESTNET_CHAINS.map((c) => [c.id, testnetTransport(c.id)])
+      ),
+    },
+  }
+}

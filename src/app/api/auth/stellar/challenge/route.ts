@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { issueStellarChallenge } from '@/lib/auth/stellar-sep10'
+import { checkSameOrigin } from '@/lib/auth/same-origin'
+import { allowedDomains, issueStellarChallenge } from '@/lib/auth/stellar-sep10'
 import { clientIp, stellarAuthLimiter } from '@/lib/ratelimit'
 
 /**
@@ -9,9 +10,13 @@ import { clientIp, stellarAuthLimiter } from '@/lib/ratelimit'
  * GET `?account=G…` is the SEP-10 shape; POST `{ address }` is what the
  * LendWise client sends. Both return the same server-signed challenge
  * transaction (sequence 0, ManageData nonce, 5-minute time bounds), bound to
- * the host the request reached.
+ * the host the request reached. Only this site's own pages may call it
+ * (same-origin.ts).
  */
-async function rateLimited(request: NextRequest) {
+async function refused(request: NextRequest) {
+  const site = checkSameOrigin(request, allowedDomains())
+  if (!site.ok)
+    return NextResponse.json({ error: site.error }, { status: site.status })
   const { success, retryAfter } = await stellarAuthLimiter.limit(
     clientIp(request.headers)
   )
@@ -43,14 +48,14 @@ async function challengeResponse(request: NextRequest, address: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const limited = await rateLimited(request)
-  if (limited) return limited
+  const refusal = await refused(request)
+  if (refusal) return refusal
   return challengeResponse(request, request.nextUrl.searchParams.get('account'))
 }
 
 export async function POST(request: NextRequest) {
-  const limited = await rateLimited(request)
-  if (limited) return limited
+  const refusal = await refused(request)
+  if (refusal) return refusal
   const body = (await request.json().catch(() => ({}))) as {
     address?: unknown
     account?: unknown

@@ -2,8 +2,11 @@
 
 import { z } from 'zod'
 
-import { PROTOCOLS_META, type ProtocolName } from '@/config/protocols-meta'
-import { YIELD_ADAPTERS } from '@/config/protocols-server'
+import {
+  type YieldAdapterId,
+  yieldProtocolsMeta,
+} from '@/config/protocols-meta'
+import { yieldAdapters } from '@/config/protocols-server'
 import {
   syncProviderProducts,
   upsertProducts,
@@ -59,7 +62,7 @@ async function writeProductDocs(products: Product[]): Promise<void> {
 
 export type SyncProductsResult = {
   success: boolean
-  counts: Partial<Record<ProtocolName, number>> & {
+  counts: Partial<Record<YieldAdapterId, number>> & {
     total: number
     /** Newly listed or relisted — a fresh availability period opened. */
     activated: number
@@ -107,11 +110,11 @@ const ENUMERATION_RETRY_DELAY_MS = 5_000
  * a second chance.
  */
 async function enumerate(
-  id: ProtocolName,
+  id: YieldAdapterId,
   opts?: FetchOpts
 ): Promise<(SupplyProduct | BorrowProduct)[]> {
   try {
-    return await (await YIELD_ADAPTERS[id]()).getProducts(opts)
+    return await (await yieldAdapters()[id]()).getProducts(opts)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.warn(
@@ -119,7 +122,7 @@ async function enumerate(
         ` retrying once in ${ENUMERATION_RETRY_DELAY_MS}ms`
     )
     await new Promise((r) => setTimeout(r, ENUMERATION_RETRY_DELAY_MS))
-    return (await YIELD_ADAPTERS[id]()).getProducts(opts)
+    return (await yieldAdapters()[id]()).getProducts(opts)
   }
 }
 
@@ -135,12 +138,12 @@ async function enumerate(
  * @param protocol - Optional protocol ID to run a single fetcher.
  */
 export async function syncProducts(
-  protocol?: ProtocolName
+  protocol?: YieldAdapterId
 ): Promise<SyncProductsResult> {
   const start = Date.now()
   const errors: string[] = []
 
-  const ids = (Object.keys(YIELD_ADAPTERS) as ProtocolName[]).filter(
+  const ids = (Object.keys(yieldAdapters()) as YieldAdapterId[]).filter(
     (id) => !protocol || id === protocol
   )
 
@@ -168,7 +171,7 @@ export async function syncProducts(
   )
 
   const allProducts: Product[] = []
-  const protoCounts: Partial<Record<ProtocolName, number>> = {}
+  const protoCounts: Partial<Record<YieldAdapterId, number>> = {}
   // Valid (id-bearing) products kept per fulfilled index — reused by the
   // availability reconciliation below so a dropped product is never re-listed.
   const validByIndex: (SupplyProduct | BorrowProduct)[][] = []
@@ -228,7 +231,7 @@ export async function syncProducts(
   const fetchedByProvider = new Map<string, string[]>()
   for (let i = 0; i < results.length; i++) {
     if (results[i].status !== 'fulfilled') continue
-    const provider = PROTOCOLS_META[ids[i]].provider // no id parsing
+    const provider = yieldProtocolsMeta()[ids[i]].provider // no id parsing
     const productIds = validByIndex[i].map((p) => p._id)
     const existing = fetchedByProvider.get(provider)
     if (existing) existing.push(...productIds)

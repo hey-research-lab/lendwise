@@ -47,6 +47,11 @@ const appLinks = [
     href: '/borrow',
     desc: 'Find the cheapest borrow rates and collaterals.',
   },
+  {
+    label: 'Bridge',
+    href: '/bridge/stellar',
+    desc: 'Move native USDC from EVM chains to Stellar.',
+  },
 ]
 
 export function NavBar() {

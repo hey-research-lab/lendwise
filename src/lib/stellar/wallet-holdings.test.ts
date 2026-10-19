@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   CIRCLE_USDC_ISSUER,
@@ -121,5 +121,45 @@ describe('getStellarWalletHoldings', () => {
       balance: 120.5,
       valueUsd: null,
     })
+  })
+})
+
+describe('getStellarWalletHoldings on a testnet deployment', () => {
+  const TESTNET_USDC_ISSUER =
+    'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
+
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_NETWORK
+  })
+
+  it('reads testnet Horizon and prices Circle testnet USDC as USDC', async () => {
+    process.env.NEXT_PUBLIC_NETWORK = 'testnet'
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            balances: [
+              {
+                balance: '10.0000000',
+                asset_type: 'credit_alphanum4',
+                asset_code: 'USDC',
+                asset_issuer: TESTNET_USDC_ISSUER,
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+    ) as unknown as typeof fetch
+
+    const [usdc] = await getStellarWalletHoldings([G], {
+      fetchImpl,
+      price: async (s) => (s === 'USDC' ? 1 : null),
+    })
+
+    expect(String(vi.mocked(fetchImpl).mock.calls[0][0])).toBe(
+      `https://horizon-testnet.stellar.org/accounts/${G}`
+    )
+    expect(usdc.priceUsd).toBe(1)
+    expect(usdc.valueUsd).toBe(10)
   })
 })

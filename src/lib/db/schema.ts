@@ -5,10 +5,12 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 // ─── products ─────────────────────────────────────────────────────────────────
@@ -188,6 +190,60 @@ export const pipelineReports = pgTable(
     payload: jsonb('payload').notNull(),
   },
   (t) => [index('pipeline_reports_type_created').on(t.type, t.createdAt)]
+)
+
+// ─── bridge_transfers ─────────────────────────────────────────────────────────
+// One row per CCTP transfer EVM → Stellar, written only by the server. It is the
+// bridge's audit log (every hash, every state change), the state a transfer
+// resumes from after a reload, and the source of the SCF evidence.
+export const bridgeTransfers = pgTable(
+  'bridge_transfers',
+  {
+    id: text('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()::text`),
+    network: text('network').notNull(), // 'mainnet' | 'testnet'
+    // 'planned' | 'burn_submitted' | 'burn_confirmed' | 'attested'
+    // | 'mint_submitted' | 'completed' | 'failed'
+    status: text('status').notNull(),
+    stellarAddress: text('stellar_address').notNull(),
+    evmAddress: text('evm_address'), // burn receipt `from`, lowercase
+    sourceChainId: integer('source_chain_id').notNull(),
+    sourceDomain: integer('source_domain').notNull(),
+    // Atomic units: EVM USDC (6 decimals) for amount and fees, Stellar USDC
+    // (7 decimals) for minted_amount. numeric(78) holds any uint256.
+    amount: numeric('amount', { precision: 78, scale: 0 }).notNull(),
+    maxFee: numeric('max_fee', { precision: 78, scale: 0 }).notNull(),
+    feeExecuted: numeric('fee_executed', { precision: 78, scale: 0 }),
+    minFinalityThreshold: integer('min_finality_threshold').notNull(),
+    finalityThresholdExecuted: integer('finality_threshold_executed'),
+    changeTrustTxHash: text('change_trust_tx_hash'),
+    approvalTxHash: text('approval_tx_hash'),
+    burnTxHash: text('burn_tx_hash'), // lowercase 0x…
+    mintTxHash: text('mint_tx_hash'),
+    irisEventNonce: text('iris_event_nonce'),
+    message: text('message'), // hex
+    attestation: text('attestation'), // hex
+    mintedAmount: numeric('minted_amount', { precision: 78, scale: 0 }),
+    error: text('error'), // last failure, `<code>: <detail>`
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // One burn, one transfer, per owner. A burn hash is public: a global index
+    // would let any session squat a victim's hash. NULLs (not burned yet) do
+    // not collide.
+    uniqueIndex('bridge_transfers_burn').on(
+      t.sourceDomain,
+      t.burnTxHash,
+      t.stellarAddress
+    ),
+    index('bridge_transfers_owner').on(t.stellarAddress, t.createdAt),
+  ]
 )
 
 // Inferred row types — replace the hand-written types in lib/db/types.ts
