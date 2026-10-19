@@ -141,7 +141,9 @@ accepts pull requests with green CI; nobody pushes to it directly.
 
 ## Pull request process
 
-1. Fork, create a branch from `testnet`.
+1. Fork, create a branch from `testnet`. Give it its own name: a pull request from a branch
+   named `main`, `mainnet` or `testnet` is closed automatically, since our deployments attach
+   settings to those names.
 2. Commit using [Conventional Commits](https://www.conventionalcommits.org/) style
    (`fix:`, `feat:`, `chore:`, ...) — that's what the history uses.
 3. Make sure the [quality bar](#quality-bar) passes locally, and run `pnpm format` before
