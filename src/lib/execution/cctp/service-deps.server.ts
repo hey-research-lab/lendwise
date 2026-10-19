@@ -46,7 +46,33 @@ export function bridgeServiceDeps(
   const cctp = cctpConfig(network.id)
   const horizonUrl = stellarHorizonUrl(env)
   const rpc = stellarSorobanRpc(env)
+  // The public endpoint, when the provider's is another one: the mint is
+  // resent through it when the provider gives no answer. dRPC answered every
+  // Stellar sendTransaction with HTTP 500 on the first mainnet mints
+  // (2026-10-19), while its reads and simulations worked.
+  const fallbackRpc =
+    rpc.url === network.publicSorobanRpcUrl
+      ? undefined
+      : { url: network.publicSorobanRpcUrl, headers: {} }
   const { passphrase, usdc } = network
+
+  const log: BridgeServiceDeps['log'] = (event, data) => {
+    // Redact every string: errors embed RPC URLs with the provider key.
+    const safe = Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [
+        k,
+        typeof v === 'string' ? redactRpcSecrets(v) : v,
+      ])
+    )
+    const line = { event, ...safe }
+    if (
+      event === 'error' ||
+      event.endsWith('mismatch') ||
+      event.endsWith('_error')
+    )
+      console.error('[bridge]', line)
+    else console.info('[bridge]', line)
+  }
 
   return {
     session: () => requireStellarSession(),
@@ -120,6 +146,9 @@ export function bridgeServiceDeps(
       submit: (xdr, recipient) =>
         submitMint(xdr, {
           rpc,
+          fallbackRpc,
+          onSendFallback: (err) =>
+            log('mint_submit_fallback', { message: redactRpcSecrets(err) }),
           passphrase,
           usdcContractId: usdc.contractId,
           recipient,
@@ -132,22 +161,6 @@ export function bridgeServiceDeps(
         }),
     },
     now: () => Date.now(),
-    log: (event, data) => {
-      // Redact every string: errors embed RPC URLs with the provider key.
-      const safe = Object.fromEntries(
-        Object.entries(data).map(([k, v]) => [
-          k,
-          typeof v === 'string' ? redactRpcSecrets(v) : v,
-        ])
-      )
-      const line = { event, ...safe }
-      if (
-        event === 'error' ||
-        event.endsWith('mismatch') ||
-        event.endsWith('_error')
-      )
-        console.error('[bridge]', line)
-      else console.info('[bridge]', line)
-    },
+    log,
   }
 }

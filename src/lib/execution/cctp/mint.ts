@@ -260,6 +260,27 @@ export async function getMintStatus(
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 /**
+ * Sends through the primary RPC and, when it gives no JSON-RPC answer (a
+ * transport or HTTP error), once more through the fallback. A signed
+ * transaction has one hash and the network applies it at most once, so the
+ * second send cannot mint twice. An answer, even ERROR, is never resent.
+ */
+async function sendWithFallback(
+  tx: Transaction,
+  primary: SorobanRpcLike,
+  fallback: SorobanRpcLike | null,
+  onFallback?: (err: unknown) => void
+): Promise<rpc.Api.SendTransactionResponse> {
+  try {
+    return await primary.sendTransaction(tx)
+  } catch (err) {
+    if (!fallback) throw err
+    onFallback?.(err)
+    return fallback.sendTransaction(tx)
+  }
+}
+
+/**
  * Relays the signed mint and waits up to `waitMs` (default 20 s) for its
  * result. Still pending after that is not an error: the transfer stays
  * `mint_submitted` and the next refresh reads it with `getMintStatus`.
@@ -268,6 +289,10 @@ export async function submitMint(
   signedXdr: string,
   deps: MintStatusDeps & {
     passphrase: string
+    /** Where the mint is resent when the primary RPC gives no answer. */
+    fallbackRpc?: SorobanRpcConnection
+    fallbackServer?: SorobanRpcLike
+    onSendFallback?: (err: unknown) => void
     waitMs?: number
     pollIntervalMs?: number
     sleep?: (ms: number) => Promise<void>
@@ -278,7 +303,10 @@ export async function submitMint(
     signedXdr,
     deps.passphrase
   ) as Transaction
-  const sent = await server.sendTransaction(tx)
+  const fallback =
+    deps.fallbackServer ??
+    (deps.fallbackRpc ? sorobanServer(deps.fallbackRpc) : null)
+  const sent = await sendWithFallback(tx, server, fallback, deps.onSendFallback)
   if (sent.status === 'ERROR') {
     const reason = sent.errorResult?.result().switch().name ?? 'unknown'
     if (reason === 'txInsufficientFee') {

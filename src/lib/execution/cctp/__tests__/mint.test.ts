@@ -362,6 +362,59 @@ describe('submitMint and getMintStatus', () => {
     })
   })
 
+  const success = (amount: bigint) => ({
+    status: 'SUCCESS',
+    events: {
+      transactionEventsXdr: [],
+      contractEventsXdr: [[transferEvent(USDC_SAC, RECIPIENT, amount)]],
+    },
+  })
+  const unreachable = () =>
+    ({
+      sendTransaction: vi.fn(async () => {
+        throw new Error('Request failed with status code 500')
+      }),
+      getTransaction: vi.fn(async () => success(49_993_500n)),
+    }) as unknown as SorobanRpcLike
+
+  it('resends through the fallback RPC when the primary one gives no answer', async () => {
+    const primary = unreachable()
+    const fallback = server([], { status: 'PENDING', hash: 'h5' })
+    const onSendFallback = vi.fn()
+    expect(
+      await submitMint(mintXdr(), {
+        ...deps(primary),
+        fallbackServer: fallback,
+        onSendFallback,
+      })
+    ).toEqual({ status: 'success', hash: 'h5', mintedAmount: 49_993_500n })
+    expect(fallback.sendTransaction).toHaveBeenCalledTimes(1)
+    expect(onSendFallback).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws when the primary RPC gives no answer and no fallback does either', async () => {
+    await expect(submitMint(mintXdr(), deps(unreachable()))).rejects.toThrow(
+      'status code 500'
+    )
+    await expect(
+      submitMint(mintXdr(), {
+        ...deps(unreachable()),
+        fallbackServer: unreachable(),
+      })
+    ).rejects.toThrow('status code 500')
+  })
+
+  it('never resends an answered submission, even a rejected one', async () => {
+    const fallback = server([], { status: 'PENDING', hash: 'h6' })
+    expect(
+      await submitMint(mintXdr(), {
+        ...deps(server([], rejected('txBadSeq'))),
+        fallbackServer: fallback,
+      })
+    ).toMatchObject({ status: 'failed', hash: 'h4' })
+    expect(fallback.sendTransaction).not.toHaveBeenCalled()
+  })
+
   it('reads a single status without polling', async () => {
     const s = server([{ status: 'NOT_FOUND' }])
     expect(await getMintStatus('h9', deps(s))).toEqual({
