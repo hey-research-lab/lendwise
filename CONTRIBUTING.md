@@ -128,16 +128,33 @@ Good entry points that don't require understanding the whole pipeline:
   [`src/lib/protocols/README.md`](src/lib/protocols/README.md).
 - **Issues labeled** [`good first issue`](https://github.com/lendwise-fi/lendwise/labels/good%20first%20issue).
 
+## Branches
+
+| Branch    | Role                                           | Deployed to                                                          |
+| --------- | ---------------------------------------------- | -------------------------------------------------------------------- |
+| `testnet` | Default branch. Every pull request targets it. | [testnet.lendwise.fi](https://testnet.lendwise.fi) (Stellar testnet) |
+| `mainnet` | Staging on mainnet, promoted from `testnet`.   | [mainnet.lendwise.fi](https://mainnet.lendwise.fi)                   |
+| `main`    | Production, promoted from `mainnet`.           | [lendwise.fi](https://lendwise.fi)                                   |
+
+Changes flow `testnet` → `mainnet` → `main`, and maintainers do the promotions. `main` only
+accepts pull requests with green CI; nobody pushes to it directly.
+
 ## Pull request process
 
-1. Fork, create a branch from `main`.
+1. Fork, create a branch from `testnet`.
 2. Commit using [Conventional Commits](https://www.conventionalcommits.org/) style
    (`fix:`, `feat:`, `chore:`, ...) — that's what the history uses.
-3. Make sure the [quality bar](#quality-bar) passes locally.
-4. Open a PR — the template will walk you through the checklist. CI must be green.
+3. Make sure the [quality bar](#quality-bar) passes locally, and run `pnpm format` before
+   pushing: CI checks formatting.
+4. Open the PR against `testnet` — the template will walk you through the checklist. CI must
+   be green.
 
 Small, focused PRs get reviewed fast. If you're planning something large, open an issue or
 a Discussion first so we can align before you invest the time.
+
+On a first contribution, CI waits for a maintainer to approve the run. Pull requests from
+forks get no automatic preview deployment: the tests are the proof, so say in the PR how you
+verified the change.
 
 ## Code of Conduct
 
