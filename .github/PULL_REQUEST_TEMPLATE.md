@@ -12,6 +12,7 @@
 
 ## Checklist
 
+- [ ] The PR targets `testnet`
 - [ ] `pnpm lint` passes
 - [ ] `pnpm typecheck` passes
 - [ ] `pnpm test` passes

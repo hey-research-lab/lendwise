@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
 import type { Networks } from '@creit-tech/stellar-wallets-kit'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -16,6 +17,7 @@ import {
 import { stellarNetwork } from '@/config/stellar-network'
 import { identifyWallet } from '@/lib/analytics/identifyWallet'
 import { formatAddress } from '@/lib/utils'
+import { reconnectHint, takeExpectedReconnect } from '@/lib/wallet/reconnect'
 import {
   restoredStellarWalletUpdate,
   shouldClearStellarSession,
@@ -279,6 +281,8 @@ export function StellarWalletProvider({
   }, [updateWallet])
 
   const connectStellar = async () => {
+    // Set when a wallet-list row asked to sign its own address back in.
+    const expectedAddress = takeExpectedReconnect('stellar')
     if (!initialized) {
       setError('Stellar wallet kit is not initialized yet.')
       return
@@ -295,6 +299,19 @@ export function StellarWalletProvider({
 
       if (!address) {
         throw new Error('Failed to retrieve address from the wallet')
+      }
+
+      // The wallet is open on another account than the row's: stop before
+      // signing that one in, and say which account to switch to.
+      const hint = reconnectHint({
+        expected: expectedAddress,
+        actual: address,
+        family: 'stellar',
+        walletName: StellarWalletsKit.selectedModule.productName,
+      })
+      if (hint) {
+        toast.info(hint)
+        return
       }
 
       // SEP-10: the server issues a challenge, the wallet signs it without

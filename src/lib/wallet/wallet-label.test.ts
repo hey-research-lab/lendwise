@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { walletSubtitle } from './wallet-label'
+import { walletRowMenu, walletSubtitle } from './wallet-label'
 
 describe('walletSubtitle', () => {
   it('names the EVM family, and says when there is no client', () => {
@@ -25,5 +25,25 @@ describe('walletSubtitle', () => {
     expect(
       walletSubtitle({ chainFamily: 'bitcoin', isConnected: true }, false)
     ).toBeNull()
+  })
+})
+
+describe('walletRowMenu', () => {
+  it('offers to reconnect a wallet that is not connected, and only to remove it', () => {
+    expect(
+      walletRowMenu({ chainFamily: 'evm', isConnected: true }, false)
+    ).toEqual({ connect: 'Connect', remove: 'Remove' })
+    expect(
+      walletRowMenu({ chainFamily: 'stellar', isConnected: false }, false)
+    ).toEqual({ connect: 'Sign in', remove: 'Remove' })
+  })
+
+  it('offers to disconnect a connected wallet', () => {
+    expect(
+      walletRowMenu({ chainFamily: 'evm', isConnected: true }, true)
+    ).toEqual({ connect: null, remove: 'Disconnect' })
+    expect(
+      walletRowMenu({ chainFamily: 'stellar', isConnected: true }, false)
+    ).toEqual({ connect: null, remove: 'Disconnect' })
   })
 })
