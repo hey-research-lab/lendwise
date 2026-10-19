@@ -7,8 +7,9 @@ Amounts in USDC; `received` is read from the mint transaction's events.
 | ---------------- | ------- | ---------------- | -------------- | ------ | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | 2026-10-16 18:59 | testnet | Base Sepolia     | new user       | 2      | 0.00026    | 1.99974  | [0f8e65b0…](https://stellar.expert/explorer/testnet/tx/0f8e65b0990d0e24098e6bc9d3e42d11d1723b1fb1b1a9d94ff5cf1ad3a7a2b2) | [0x48cc8991…](https://sepolia.basescan.org/tx/0x48cc8991af041e921a7395f3c9e7ea2a7a7e2c9f3c8c5608b34e5285312b7bf3) | [0x615f306d…](https://sepolia.basescan.org/tx/0x615f306d86302c3925d525ef3e2aa53a6f9309d3f29db739c42dd3f9a5f9cac7) | `0x9940a613…` | [3fac8bcc…](https://stellar.expert/explorer/testnet/tx/3fac8bccbb096613558290dbfb7fdee46cfb8629c9c5d6a4fd3f66d1ed6f264e) |
 | 2026-10-16 21:21 | testnet | Ethereum Sepolia | returning user | 1      | 0.0001     | 0.9999   | —                                                                                                                        | [0xdcfb3bd8…](https://sepolia.etherscan.io/tx/0xdcfb3bd8013ba734466ca83227607a53fd4010052e838a35a0930340e74c45bd) | [0xc4993bf4…](https://sepolia.etherscan.io/tx/0xc4993bf48d2d353bb75327b2b337a7913978381fb43a2847bbe9ab04320f3ee3) | `0x88901e73…` | [8ca47b9f…](https://stellar.expert/explorer/testnet/tx/8ca47b9fcf8934c1955efbbffe668bcea5e46e59b35983ade89e012a8dab2cd5) |
+| 2026-10-19 00:04 | mainnet | Base             | returning user | 5      | 0.00065    | 4.99935  | —                                                                                                                        | [0x824c1955…](https://basescan.org/tx/0x824c1955d45e0e69509ea666b7dafcb91dda4a38a9fbbb8097242507d8af1b35)         | [0x42878875…](https://basescan.org/tx/0x428788758cde10c635110abfc8c84fb800d76a8995254f73a0922a90c1945ac0)         | `0x6d3dde0a…` | [64717907…](https://stellar.expert/explorer/public/tx/64717907a20683eca1b62b8852252a02cb43caadbbdb71a73613e5e692266d50)  |
 
-Both rows have status `completed` and no error, and in both
+All three rows have status `completed` and no error, and in all three
 `minted_amount = (amount − fee_executed) × 10`: USDC has 6 decimals on the EVM side and 7 on
 Stellar.
 
@@ -69,7 +70,47 @@ The captures:
   47 seconds in;
 - [`t3-testnet-returning.png`](t3-testnet-returning.png): the completed transfer.
 
-## Checked against the chains
+## Transfer 3: mainnet
+
+- **App:** [mainnet.lendwise.fi/bridge/stellar](https://mainnet.lendwise.fi/bridge/stellar), the
+  `mainnet` branch deployment (Stellar mainnet, production database). The bridge was opened for
+  that branch only (`CCTP_BRIDGE_ENABLED=1`); lendwise.fi still had it paused.
+- **Accounts:** Stellar
+  [`GDHYIHAZ5URVB5TUKLREMPFGH4AYMIMON5KHXKKNYLTYGLUECF4OKV33`](https://stellar.expert/explorer/public/account/GDHYIHAZ5URVB5TUKLREMPFGH4AYMIMON5KHXKKNYLTYGLUECF4OKV33)
+  in Freighter, which already had the USDC trustline, and EVM
+  `0xb09303f65801e1d995f7f3838ae60a3d3b0a3f28` in MetaMask.
+- **Approval, burn and attestation** ran on `2dd56ef` (PR #43). As in transfer 1, MetaMask paid the
+  gas: the burn is sent by a MetaMask relayer, and its `DepositForBurn` event names
+  `0xb093…3f28` as depositor, for 5,000,000 units to domain 27. Circle attested it as Fast, with a
+  fee of 650 units (1.3 bps).
+
+**The mint took three signatures.** On mainnet the server's Soroban RPC is dRPC; on testnet it is
+the public one, so this was the first transaction the server sent through dRPC. dRPC answered both
+first submissions with HTTP 500:
+
+| Signed at (UTC) | Mint transaction | What happened                                                         |
+| --------------- | ---------------- | --------------------------------------------------------------------- |
+| 00:06           | `24c9ae79…`      | HTTP 500 from dRPC; never on the network (`NOT_FOUND`, Horizon 404)   |
+| 00:14           | `1a8873fd…`      | Same                                                                  |
+| 00:27           | `64717907…`      | HTTP 500 from dRPC, resent through the public RPC; in ledger 65016777 |
+
+Each time, the server could not tell whether the transaction had left, so the transfer waited out
+the transaction's five-minute validity window, then asked for a new signature. PR #44 (deployed in
+`c0d9b31`, PR #45) resends the same signed transaction through the network's public Soroban RPC
+when the provider gives no answer. The third mint went through it.
+
+**Checked on the chain.** The mint's balance changes on Horizon:
+
+- Circle's minter mints 4.99935 USDC to the forwarder `CBZL2IH7…JDF5T`, and 0.00065 USDC to the
+  CCTP fee recipient `GBICEF24…`;
+- the forwarder transfers the 4.99935 USDC to `GDHYIH…KV33`.
+
+That is `(5,000,000 − 650) × 10 = 49,993,500` Stellar units, the row's `minted_amount`. The mint's
+fee was 0.0282 XLM.
+
+The capture: [`t3-mainnet-complete.png`](t3-mainnet-complete.png).
+
+## Testnet transfers checked against the chains
 
 Each transfer was checked against Base Sepolia or Sepolia, Circle's Iris sandbox and Stellar
 testnet. Both are Fast transfers (finality threshold 1000), and both Iris messages are `complete`.
