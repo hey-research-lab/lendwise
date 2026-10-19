@@ -60,6 +60,12 @@ export async function fetchCompoundV3ApySpot(
         name: chainConfig.name.toLowerCase(),
       }
 
+      // Per-chain buffer. Pushing into the shared `snapshots` array and
+      // returning it made every fulfilled chain re-append the whole array below
+      // (snapshots.push(...result.value) with result.value === snapshots),
+      // doubling the result once per chain.
+      const chainSnapshots: SpotPayload[] = []
+
       for (const market of data.markets) {
         // Compound's accounting totals are RAW base units; the pipeline stores
         // whole tokens so that no reader needs the provider to interpret an
@@ -120,13 +126,16 @@ export async function fetchCompoundV3ApySpot(
             utilizationRate: Number(market.accounting.utilization),
             assetPriceUsd: Number(market.configuration.baseToken.lastPriceUsd),
             collateralAssetsUsd: Number(market.accounting.collateralBalanceUsd),
-            priceCollateralInLoanAsset: null, // TODO: derive from collateral state
+            // Single collateral/loan price is a Morpho Blue concept (see
+            // BorrowMarketState). A Comet market accepts several collaterals,
+            // so there is no one ratio to report here.
+            priceCollateralInLoanAsset: null,
           } as BorrowMarketState,
         }
 
-        snapshots.push(supplyPayload, borrowPayload)
+        chainSnapshots.push(supplyPayload, borrowPayload)
       }
-      return snapshots
+      return chainSnapshots
     })
   )
 

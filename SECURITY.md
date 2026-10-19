@@ -1,9 +1,16 @@
 # Security Policy
 
-Lendwise is a read-only analytics platform: it never holds user funds and never asks for
-private keys or signatures beyond standard wallet connection for viewing positions. That
-said, we take the security of our infrastructure (APIs, database, rate limiting, data
-integrity) seriously.
+Lendwise compares lending rates across DeFi protocols. It never holds user funds and never
+asks for private keys. A connected wallet is only asked to sign, and shows each request
+before signing:
+
+- a SEP-10 challenge, to sign in with a Stellar account. The challenge is never submitted
+  to the network;
+- the transactions of the USDC bridge (Circle CCTP, EVM → Stellar): the USDC approval and
+  burn on the source chain, then the trustline and the mint on Stellar.
+
+We take the security of the application and its infrastructure (APIs, sign-in, database,
+rate limiting, data integrity) seriously.
 
 ## Reporting a Vulnerability
 
@@ -28,12 +35,16 @@ potential impact.
 In scope:
 
 - The web application and its API routes (`/api/graphql`, `/api/optimizer`, cron endpoints)
+- Stellar sign-in (`/api/auth/stellar/*`): SEP-10 challenges, the session cookie, sign-out
+- The USDC bridge: the transactions it builds for the wallet to sign, and the transfer
+  records behind them
 - Data-integrity issues in the APY pipeline (poisoning, injection)
 - Authentication/authorization bypasses on protected endpoints
 
 Out of scope:
 
-- Vulnerabilities in the underlying protocols (Aave, Morpho, Compound) — report those to
-  the respective teams
+- Vulnerabilities in the underlying protocols and networks (Aave, Morpho, Compound, Blend,
+  Circle CCTP, Stellar) — report those to the respective teams
+- Vulnerabilities in wallet software (MetaMask, Freighter, …)
 - Rate-limit findings that require unrealistic volumes
 - Social engineering, physical attacks
