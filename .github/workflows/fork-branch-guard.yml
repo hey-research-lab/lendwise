@@ -1,0 +1,44 @@
+name: Fork branch guard
+
+# Vercel picks branch-scoped environment variables by the name of the pull
+# request's head branch, and a fork can name its branch after ours. A fork
+# branch called `mainnet` would ask for a deployment with the pre-prod
+# variables. Such a pull request is closed with a comment, so nobody authorizes
+# that deployment by mistake.
+#
+# pull_request_target runs this file from the base branch with a write token,
+# so it never checks out or runs the pull request's code, and reads the branch
+# name only through an environment variable.
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  guard:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Close pull requests from a reserved branch name
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          case "$(printf '%s' "$HEAD_REF" | tr '[:upper:]' '[:lower:]')" in
+            main | mainnet | testnet) ;;
+            *)
+              echo "Branch name is fine."
+              exit 0
+              ;;
+          esac
+          # The close is the control, so it goes first; the comment is a courtesy.
+          gh pr close "$PR_NUMBER"
+          gh pr comment "$PR_NUMBER" --body "Thanks for the contribution! Branches named \`main\`, \`mainnet\` or \`testnet\` are reserved: our deployments attach settings to those names. Please push your commits to a branch with another name (for example \`fix/short-description\`) and open a new pull request against \`testnet\`. See [CONTRIBUTING.md](https://github.com/${GH_REPO}/blob/testnet/CONTRIBUTING.md#pull-request-process)." ||
+            echo "::warning::Closed the pull request, but the comment could not be posted."
+          echo "::error::Fork pull request from a reserved branch name; closed."
+          exit 1
