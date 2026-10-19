@@ -147,9 +147,9 @@ export async function upsertHourlySlots(
   hour: Date,
   slotTime: Date
 ): Promise<number> {
-  // One observation per product per slot. Some adapters (Compound) emit the
-  // same Comet productId once per collateral; collapse to the last occurrence
-  // so a single multi-row statement never touches the same key twice
+  // One observation per product per slot. Adapters should already emit each
+  // productId once; collapse to the last occurrence defensively so a single
+  // multi-row statement never touches the same key twice
   // (Postgres: "ON CONFLICT DO UPDATE command cannot affect row a second time").
   const all = Array.from(
     new Map(payloads.map((p) => [p.productId, p])).values()
