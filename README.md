@@ -119,6 +119,8 @@ QStash cron.
 | Doc                                                 | What's inside                                                              |
 | --------------------------------------------------- | -------------------------------------------------------------------------- |
 | [SCF #45 — Milestone 1](docs/scf-45-milestone-1.md) | Stellar Community Fund Tranche 1: deliverables, success criteria, evidence |
+| [SCF #45 — Milestone 2](docs/scf-45-milestone-2.md) | Stellar Community Fund Tranche 2: deliverables, success criteria, evidence |
+| [SCF #45 — Milestone 3](docs/scf-45-milestone-3.md) | Stellar Community Fund Tranche 3: deliverables, success criteria, evidence |
 | [Protocol adapters](src/lib/protocols/README.md)    | Architecture, adapter contract, how to add a protocol                      |
 | [Contributing guide](CONTRIBUTING.md)               | Setup, quality bar, PR process                                             |
 
