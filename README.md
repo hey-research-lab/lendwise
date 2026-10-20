@@ -7,7 +7,7 @@
 
 # Unified view for lending markets. One standard.
 
-Lendwise compares and monitors 700+ lending markets across **Aave**, **Morpho**, **Compound**, **Blend** and more. It standardizes rates to net APY (base ± fees ± rewards) and optimizes your capital allocation.
+Lendwise compares and monitors 900+ lending markets across **Aave**, **Morpho**, **Compound**, **Blend** and more. It standardizes rates to net APY (base ± fees ± rewards) and optimizes your capital allocation.
 
 [![CI](https://github.com/lendwise-fi/lendwise/actions/workflows/ci.yml/badge.svg)](https://github.com/lendwise-fi/lendwise/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -41,7 +41,7 @@ Here are standardized APYs — now you can actually compare them.
 - **Historical** — hourly averages and daily aggregates for 180 days, kept whole by a
   nightly reconcile job that detects gaps, repairs them, and re-aggregates the days
   they belong to.
-- **Complete** — ~700 active markets, ~120 assets, supply _and_ borrow sides,
+- **Complete** — ~900 active markets, ~120 assets, supply _and_ borrow sides,
   collateral parameters included.
 
 ### 🎯 One allocation
