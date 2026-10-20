@@ -8,8 +8,10 @@ Amounts in USDC; `received` is read from the mint transaction's events.
 | 2026-10-16 18:59 | testnet | Base Sepolia     | new user       | 2      | 0.00026    | 1.99974  | [0f8e65b0…](https://stellar.expert/explorer/testnet/tx/0f8e65b0990d0e24098e6bc9d3e42d11d1723b1fb1b1a9d94ff5cf1ad3a7a2b2) | [0x48cc8991…](https://sepolia.basescan.org/tx/0x48cc8991af041e921a7395f3c9e7ea2a7a7e2c9f3c8c5608b34e5285312b7bf3) | [0x615f306d…](https://sepolia.basescan.org/tx/0x615f306d86302c3925d525ef3e2aa53a6f9309d3f29db739c42dd3f9a5f9cac7) | `0x9940a613…` | [3fac8bcc…](https://stellar.expert/explorer/testnet/tx/3fac8bccbb096613558290dbfb7fdee46cfb8629c9c5d6a4fd3f66d1ed6f264e) |
 | 2026-10-16 21:21 | testnet | Ethereum Sepolia | returning user | 1      | 0.0001     | 0.9999   | —                                                                                                                        | [0xdcfb3bd8…](https://sepolia.etherscan.io/tx/0xdcfb3bd8013ba734466ca83227607a53fd4010052e838a35a0930340e74c45bd) | [0xc4993bf4…](https://sepolia.etherscan.io/tx/0xc4993bf48d2d353bb75327b2b337a7913978381fb43a2847bbe9ab04320f3ee3) | `0x88901e73…` | [8ca47b9f…](https://stellar.expert/explorer/testnet/tx/8ca47b9fcf8934c1955efbbffe668bcea5e46e59b35983ade89e012a8dab2cd5) |
 | 2026-10-19 00:04 | mainnet | Base             | returning user | 5      | 0.00065    | 4.99935  | —                                                                                                                        | [0x824c1955…](https://basescan.org/tx/0x824c1955d45e0e69509ea666b7dafcb91dda4a38a9fbbb8097242507d8af1b35)         | [0x42878875…](https://basescan.org/tx/0x428788758cde10c635110abfc8c84fb800d76a8995254f73a0922a90c1945ac0)         | `0x6d3dde0a…` | [64717907…](https://stellar.expert/explorer/public/tx/64717907a20683eca1b62b8852252a02cb43caadbbdb71a73613e5e692266d50)  |
+| 2026-10-19 23:03 | mainnet | Base             | new user       | 5      | 0.00065    | 4.99935  | [cdcb3006…](https://stellar.expert/explorer/public/tx/cdcb30066b6b9715abd179d903fa75a8e7f2994aa764a0747f08fef07189d3af)  | [0x377eba9b…](https://basescan.org/tx/0x377eba9b0f6092575c9fcbdceba607aa91aac45abfa1f534b13e11e7ac21e1c5)         | [0x21deba50…](https://basescan.org/tx/0x21deba50dfd285d1dcad86e798a9bc95d4bd70074da224b3a52c7745dba7e506)         | `0x933e5a43…` | [14cd5da6…](https://stellar.expert/explorer/public/tx/14cd5da6b70d8a1f078a1fe05b949f3e288d0ebab0553bffbe23996c9396fbf0)  |
+| 2026-10-19 23:22 | mainnet | Base             | returning user | 4      | 0.00052    | 3.99948  | —                                                                                                                        | [0xad3aafc4…](https://basescan.org/tx/0xad3aafc4617b215253822a89bd3646e5eb322e74d75f8ced4ccf6818625c907a)         | [0x2e3be76a…](https://basescan.org/tx/0x2e3be76ab76e4544adb7046962d64825e9ea53c45bf71477268b73fc5d30d9ac)         | `0x4290b33b…` | [a6e39a07…](https://stellar.expert/explorer/public/tx/a6e39a07754dd1cdccc2d0a6428f9efdad787bbc25c6dc6651962c57aa563154)  |
 
-All three rows have status `completed` and no error, and in all three
+All five rows have status `completed` and no error, and in all five
 `minted_amount = (amount − fee_executed) × 10`: USDC has 6 decimals on the EVM side and 7 on
 Stellar.
 
@@ -132,3 +134,35 @@ After both transfers, the account holds 2.99964 USDC.
 
 The two Iris messages are also CI fixtures, beside two third-party testnet mints, in
 `src/lib/execution/cctp/__tests__/testnet-mints.test.ts` (PR #36).
+
+## Transfers 4 and 5: mainnet QA on lendwise.fi
+
+- **App:** [lendwise.fi/bridge/stellar](https://lendwise.fi/bridge/stellar), production, release
+  `main` at `813b471` (PR #62), on 2026-10-19 between 23:03 and 23:28 UTC.
+- **Accounts:** EVM `0xE6ebFf6b69A58CfBa089DEB1c47a4Dc87C83Fbcc` in MetaMask, both times.
+  - Transfer 4, new user: Stellar
+    [`GDLZ2TS5XSMZ3WHO3R7TTJN56YUYHOBQRAX7SQZ4UHYNVXWCSIBBS7EG`](https://stellar.expert/explorer/public/account/GDLZ2TS5XSMZ3WHO3R7TTJN56YUYHOBQRAX7SQZ4UHYNVXWCSIBBS7EG),
+    created just before with 3 XLM and no trustline. The page asked for the USDC trustline before
+    the burn, and the ChangeTrust was signed in Freighter.
+  - Transfer 5, returning user: Stellar `GDHYIH…KV33`, the account of transfer 3. No ChangeTrust.
+- **Timing:** transfer 4 took 2 min 51 s from the transfer's creation to the mint, with a page
+  reload and **Resume** once attested; transfer 5 took 69 s. Each mint was signed once.
+
+**Checked on the chains:**
+
+- **Approval:** a call on Base's USDC contract, `approve(0x28b5a0e9…cf5d, amount)`: the
+  TokenMessengerV2 of the app's config, for exactly the amount (5,000,000 and 4,000,000 units).
+- **Burn:** transfer 4's burn is sent by `0xE6eb…Fbcc` to `0x28b5a0e9…cf5d` with selector
+  `0x779b432d`, that is `depositForBurnWithHook`. Transfer 5's burn was relayed by MetaMask, which
+  paid the gas in USDC because the account held almost no ETH. The relayed transaction moves
+  4,000,000 units from `0xE6eb…Fbcc` to the minter, which burns them, and 0.009526 USDC to
+  MetaMask's fee address. The server checks the burn against the `DepositForBurn` depositor, not
+  the transaction sender, so it accepted it.
+- **Mint:** each mint calls `mint_and_forward` on the forwarder
+  `CBZL2IH7F6BIDAA3WBNXYKIXSATJGMSW7K5P5MJ6STX5RXN47TZJDF5T`.
+- **Amount received:** Horizon shows 4.99935 USDC on `GDLZ…S7EG` after transfer 4, that is
+  `(5,000,000 − 650) × 10 = 49,993,500` units, and the account of transfer 5 holds 3.99948 USDC
+  more, `(4,000,000 − 520) × 10 = 39,994,800` units. Both equal the rows' `minted_amount`.
+
+The captures are in this folder: `t3-qa-first-*.png` for transfer 4, `t3-qa-returning-complete.png`
+for transfer 5.
