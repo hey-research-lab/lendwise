@@ -2,13 +2,13 @@
 
 Evidence for the two Tranche 2 deliverables of LendWise's
 [Stellar Community Fund #45 submission](https://communityfund.stellar.org/submissions/recmK8tdxCKvSU3GS)
-(Tranche 2, "Testnet", $12,430): each success criterion, and where to check it — in this public
+(Tranche 2, "Testnet"): each success criterion, and where to check it — in this public
 repository, on a staging environment, and on [lendwise.fi](https://lendwise.fi).
 
-| Deliverable                                                                                                                        | Success criterion                                                                                                                                                                                                           | Status    |
-| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| [1 — Standardized health-factor & risk module, portfolio UI](#1--standardized-health-factor--risk-module-portfolio-ui) ($5,650)    | Unit-test suite passing in CI over multiple reserve/oracle scenarios including an unpriced asset; on staging, a fixture Stellar adapter shows a computed health factor for a Stellar address, and "unknown" without a price | Delivered |
-| [2 — EVM + Stellar portfolio merge with graceful degradation](#2--evm--stellar-portfolio-merge-with-graceful-degradation) ($6,780) | EVM Aave position and Stellar USDC in the same portfolio view; with the Stellar endpoint unreachable, the page still renders the EVM side with the partial-data indicator                                                   | Delivered |
+| Deliverable                                                                                                               | Success criterion                                                                                                                                                                                                           | Status    |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| [1 — Standardized health-factor & risk module, portfolio UI](#1--standardized-health-factor--risk-module-portfolio-ui)    | Unit-test suite passing in CI over multiple reserve/oracle scenarios including an unpriced asset; on staging, a fixture Stellar adapter shows a computed health factor for a Stellar address, and "unknown" without a price | Delivered |
+| [2 — EVM + Stellar portfolio merge with graceful degradation](#2--evm--stellar-portfolio-merge-with-graceful-degradation) | EVM Aave position and Stellar USDC in the same portfolio view; with the Stellar endpoint unreachable, the page still renders the EVM side with the partial-data indicator                                                   | Delivered |
 
 **Staging:** [lendwise-mainnet.vercel.app](https://lendwise-mainnet.vercel.app)
 (custom domain of the `mainnet` branch preview). **CI:** the latest green run on `mainnet`,
