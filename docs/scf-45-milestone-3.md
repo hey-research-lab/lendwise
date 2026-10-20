@@ -298,16 +298,31 @@ The `families` section of the same report row:
 
 ### Production
 
-The nightly report on lendwise.fi lists the `stellar` family (Blend v2.1, history through Hubble)
-next to the EVM protocols; the fixture is not loaded in production. Production keeps the default
-20 GiB cost cap on Hubble queries, so a Stellar hole there is repaired from a neighbouring hour
-(see [`scf-45/t3-reconcile.md`](scf-45/t3-reconcile.md#what-hubble-refetch-costs)).
+The nightly reconcile on lendwise.fi checks the `stellar` family (Blend v2.1, history through
+Hubble) in the same run as the EVM protocols; the fixture is not loaded in production. The first
+production report with the family section, on the release `813b471`:
+
+| Report                | Value                                                    |
+| --------------------- | -------------------------------------------------------- |
+| `pipeline_reports` id | `5437dd9a-ec08-4015-b845-5800e7774b5c`                   |
+| Run at                | 2026-10-20 00:30:30 UTC (nightly schedule), 7-day window |
+| `stellar` adapters    | `blend_v2.1`, with history; `stellar_fixture` absent     |
+| `evm` adapters        | `aave_v3`, `morpho_v1`, `compound_v3`, with history      |
+| Gaps                  | none that night in either family, so nothing to repair   |
 
 ```text
-<to fill: output of pnpm reconcile:status for the first production report with families>
+reconcile report 5437dd9a-ec08-4015-b845-5800e7774b5c — 2026-10-20T00:30:30.563Z
+window 2026-10-13T00:00:00.000Z → 2026-10-20T00:00:00.000Z · success true · dryRun false
+family    gaps  refetch  neighbour  no donor  history req/ret/fail  adapters
+evm          0        0          0         0                 0/0/0  aave_v3 (history), morpho_v1 (history), compound_v3 (history)
+stellar      0        0          0         0                 0/0/0  blend_v2.1 (history)
 ```
 
-![Production reconcile report: evm and stellar families](scf-45/t3-reconcile-production.png)
+The `families` section of the same report row:
+[`scf-45/t3-reconcile-production-families.json`](scf-45/t3-reconcile-production-families.json).
+Production keeps the default 20 GiB cost cap on Hubble queries, so a Stellar hole there is
+repaired from a neighbouring hour; the Hubble refetch path is the one exercised on staging above
+(see [`scf-45/t3-reconcile.md`](scf-45/t3-reconcile.md#what-hubble-refetch-costs)).
 
 ### Tests (CI)
 
