@@ -319,7 +319,9 @@ evm          0        0          0         0                 0/0/0  aave_v3 (his
 stellar      0        0          0         0                 0/0/0  blend_v2.1 (history)
 ```
 
-The `families` section of the same report row:
+The same output as a file:
+[`scf-45/t3-reconcile-production.txt`](scf-45/t3-reconcile-production.txt); the `families` section
+of the same report row:
 [`scf-45/t3-reconcile-production-families.json`](scf-45/t3-reconcile-production-families.json).
 Production keeps the default 20 GiB cost cap on Hubble queries, so a Stellar hole there is
 repaired from a neighbouring hour; the Hubble refetch path is the one exercised on staging above
@@ -405,17 +407,17 @@ on `main` since `813b471`.
 [`GDHYIHAZ5URVB5TUKLREMPFGH4AYMIMON5KHXKKNYLTYGLUECF4OKV33`](https://stellar.expert/explorer/public/account/GDHYIHAZ5URVB5TUKLREMPFGH4AYMIMON5KHXKKNYLTYGLUECF4OKV33),
 existing trustline:
 
-| #   | Check                                               | Result                                                                                                                                             |
-| --- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | USDC row on Base → bridge with Base pre-selected    | OK: Pay "USDC on Base"                                                                                                                             |
-| 2   | Blend USDC row → bridge with the product, no source | OK, replayed on 2026-10-21: the link carries `product=` and no source; once minted, **Next step: supply on Blend** opens the Blend v2.1 Fixed pool |
-| 3   | Optimizer allocation on Stellar → bridge link       | OK: Blend v2.1 Fixed at 100 %, "Bridge 1000 USDC to Stellar"                                                                                       |
-| 4   | Preflight ready, no ChangeTrust                     | OK: "Bridge 4 USDC" directly                                                                                                                       |
-| 5   | Full transfer                                       | OK: 3.99948 USDC = (4,000,000 − 520) × 10 units                                                                                                    |
-| 6   | Transfers list                                      | OK: this account's transfers, newest first, with the mint link                                                                                     |
-| 7   | Amount above the 1,000 USDC cap                     | OK: refused before any wallet call; the server-side cap is pinned in `service.test.ts`; no row above the cap in the table                          |
-| 8   | Malformed amounts (`1,5`, `0.0000001`)              | OK: refused before any wallet call                                                                                                                 |
-| 9   | Signed out                                          | OK: back to "Sign in with Stellar", transfers list disabled                                                                                        |
+| #   | Check                                               | Result                                                                                                                                                                                                                                                                                                                             |
+| --- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | USDC row on Base → bridge with Base pre-selected    | OK: Pay "USDC on Base"                                                                                                                                                                                                                                                                                                             |
+| 2   | Blend USDC row → bridge with the product, no source | OK, replayed on 2026-10-21: the link carries `product=` and no source; once minted, **Next step: supply on Blend** opens the Blend v2.1 Fixed pool                                                                                                                                                                                 |
+| 3   | Optimizer allocation on Stellar → bridge link       | OK: Blend v2.1 Fixed at 100 %, "Bridge 1000 USDC to Stellar"                                                                                                                                                                                                                                                                       |
+| 4   | Preflight ready, no ChangeTrust                     | OK: "Bridge 4 USDC" directly                                                                                                                                                                                                                                                                                                       |
+| 5   | Full transfer                                       | OK: 3.99948 USDC = (4,000,000 − 520) × 10 units                                                                                                                                                                                                                                                                                    |
+| 6   | Transfers list                                      | OK: this account's transfers, newest first, with the mint link                                                                                                                                                                                                                                                                     |
+| 7   | Amount above the 1,000 USDC cap                     | OK, refused before any wallet call: `1000.01` with 0.906801 USDC on Base greys the button with "Not enough USDC on Base", since the balance check comes before the cap, and "The maximum per transfer is 1000 USDC" shows under it; the server-side cap is pinned in `service.test.ts`; no row above the cap in `bridge_transfers` |
+| 8   | Malformed amounts (`1,5`, `0.0000001`)              | OK: refused before any wallet call                                                                                                                                                                                                                                                                                                 |
+| 9   | Signed out                                          | OK: back to "Sign in with Stellar", transfers list disabled                                                                                                                                                                                                                                                                        |
 
 | Step     | Transaction                                                                                                             |
 | -------- | ----------------------------------------------------------------------------------------------------------------------- |
