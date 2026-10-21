@@ -1,9 +1,9 @@
 # SCF #45 — Milestone 2 (Tranche 2, Testnet)
 
 Evidence for the two Tranche 2 deliverables of LendWise's
-[Stellar Community Fund #45 submission](https://communityfund.stellar.org/submissions/recmK8tdxCKvSU3GS)
-(Tranche 2, "Testnet"): each success criterion, and where to check it — in this public
-repository, on a staging environment, and on [lendwise.fi](https://lendwise.fi).
+[Stellar Community Fund #45 submission](https://communityfund.stellar.org/submissions/recmK8tdxCKvSU3GS):
+each success criterion, and where to check it — in this public repository, on a staging
+environment, and on [lendwise.fi](https://lendwise.fi).
 
 | Deliverable                                                                                                               | Success criterion                                                                                                                                                                                                           | Status    |
 | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
