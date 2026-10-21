@@ -10,8 +10,9 @@ Amounts in USDC; `received` is read from the mint transaction's events.
 | 2026-10-19 00:04 | mainnet | Base             | returning user | 5      | 0.00065    | 4.99935  | —                                                                                                                        | [0x824c1955…](https://basescan.org/tx/0x824c1955d45e0e69509ea666b7dafcb91dda4a38a9fbbb8097242507d8af1b35)         | [0x42878875…](https://basescan.org/tx/0x428788758cde10c635110abfc8c84fb800d76a8995254f73a0922a90c1945ac0)         | `0x6d3dde0a…` | [64717907…](https://stellar.expert/explorer/public/tx/64717907a20683eca1b62b8852252a02cb43caadbbdb71a73613e5e692266d50)  |
 | 2026-10-19 23:03 | mainnet | Base             | new user       | 5      | 0.00065    | 4.99935  | [cdcb3006…](https://stellar.expert/explorer/public/tx/cdcb30066b6b9715abd179d903fa75a8e7f2994aa764a0747f08fef07189d3af)  | [0x377eba9b…](https://basescan.org/tx/0x377eba9b0f6092575c9fcbdceba607aa91aac45abfa1f534b13e11e7ac21e1c5)         | [0x21deba50…](https://basescan.org/tx/0x21deba50dfd285d1dcad86e798a9bc95d4bd70074da224b3a52c7745dba7e506)         | `0x933e5a43…` | [14cd5da6…](https://stellar.expert/explorer/public/tx/14cd5da6b70d8a1f078a1fe05b949f3e288d0ebab0553bffbe23996c9396fbf0)  |
 | 2026-10-19 23:22 | mainnet | Base             | returning user | 4      | 0.00052    | 3.99948  | —                                                                                                                        | [0xad3aafc4…](https://basescan.org/tx/0xad3aafc4617b215253822a89bd3646e5eb322e74d75f8ced4ccf6818625c907a)         | [0x2e3be76a…](https://basescan.org/tx/0x2e3be76ab76e4544adb7046962d64825e9ea53c45bf71477268b73fc5d30d9ac)         | `0x4290b33b…` | [a6e39a07…](https://stellar.expert/explorer/public/tx/a6e39a07754dd1cdccc2d0a6428f9efdad787bbc25c6dc6651962c57aa563154)  |
+| 2026-10-21 19:05 | mainnet | Base             | returning user | 1      | 0.00013    | 0.99987  | —                                                                                                                        | [0xede26da5…](https://basescan.org/tx/0xede26da5e783550846d2d02a2d69b05cc3ab13d322a43686a17de705256e62df)         | [0xc0b20798…](https://basescan.org/tx/0xc0b20798f64347577ad7800c219eb43e661d1c79a24ef2771e3a5b02a47fb5d6)         | `0xe792bd42…` | [bdaec2ba…](https://stellar.expert/explorer/public/tx/bdaec2bafd472d169b7a418f0e0616bdfe6fe054055e90104b25dacfc39a570a)  |
 
-All five rows have status `completed` and no error, and in all five
+All six rows have status `completed` and no error, and in all six
 `minted_amount = (amount − fee_executed) × 10`: USDC has 6 decimals on the EVM side and 7 on
 Stellar.
 
@@ -166,3 +167,29 @@ The two Iris messages are also CI fixtures, beside two third-party testnet mints
 
 The captures are in this folder: `t3-qa-first-*.png` for transfer 4, `t3-qa-returning-complete.png`
 for transfer 5.
+
+## Transfer 6: Blend next step on lendwise.fi
+
+- **Why:** a replay of the returning-user check "Blend USDC row → bridge with the product".
+  Transfer 5 had started from the banner, which carries no product, so **Next step: supply on
+  Blend** never showed.
+- **App:** [lendwise.fi/bridge/stellar](https://lendwise.fi/bridge/stellar), production, on
+  2026-10-21 between 19:04 and 19:07 UTC. Only docs changed on `main` since `813b471`.
+- **Accounts:** EVM `0xE6eb…Fbcc` in MetaMask; Stellar `GDLZ…S7EG`, the account of transfer 4,
+  which already held the trustline. No ChangeTrust.
+- **Entry:** the **Bridge to Stellar** action of the Blend v2.1 Fixed USDC row links to
+  `/bridge/stellar?asset=USDC&product=blend:v2.1:stellar:pool:cbakazue…:supply`, with no source.
+  Once minted, the page showed **Next step: supply on Blend**, which opened Supply USDC on the
+  Blend v2.1 Fixed pool (`poolId=CBAKAZUE…`).
+- **Timing:** 65 s from the transfer's creation to the mint, signed once.
+
+**Checked on the chains:**
+
+- **Approval:** `approve(0x28b5a0e9…cf5d, 1,000,000)` on Base's USDC contract, sent by
+  `0xE6eb…Fbcc`.
+- **Burn:** relayed by MetaMask again, which took 0.008195 USDC for the gas. The `DepositForBurn`
+  event names `0xE6eb…Fbcc` as depositor, with finality threshold 1000.
+- **Mint:** `mint_and_forward` on the forwarder `CBZL2IH7…JDF5T`, which forwards 0.99987 USDC to
+  `GDLZ…S7EG`: `(1,000,000 − 130) × 10 = 9,998,700` units, the row's `minted_amount`.
+
+The captures are `t3-qa-returning-blend-*.png` in this folder.
