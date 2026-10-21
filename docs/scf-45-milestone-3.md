@@ -65,11 +65,12 @@ decimals on the EVM side and 7 on Stellar.
 | Mainnet | mainnet.lendwise.fi | Base         | 5 USDC | 0.00065 USDC | 4.99935 USDC      | 4.99935  | [0x42878875…](https://basescan.org/tx/0x428788758cde10c635110abfc8c84fb800d76a8995254f73a0922a90c1945ac0)         | [64717907…](https://stellar.expert/explorer/public/tx/64717907a20683eca1b62b8852252a02cb43caadbbdb71a73613e5e692266d50)  |
 | Mainnet | lendwise.fi (QA)    | Base         | 5 USDC | 0.00065 USDC | 4.99935 USDC      | 4.99935  | [0x21deba50…](https://basescan.org/tx/0x21deba50dfd285d1dcad86e798a9bc95d4bd70074da224b3a52c7745dba7e506)         | [14cd5da6…](https://stellar.expert/explorer/public/tx/14cd5da6b70d8a1f078a1fe05b949f3e288d0ebab0553bffbe23996c9396fbf0)  |
 | Mainnet | lendwise.fi (QA)    | Base         | 4 USDC | 0.00052 USDC | 3.99948 USDC      | 3.99948  | [0x2e3be76a…](https://basescan.org/tx/0x2e3be76ab76e4544adb7046962d64825e9ea53c45bf71477268b73fc5d30d9ac)         | [a6e39a07…](https://stellar.expert/explorer/public/tx/a6e39a07754dd1cdccc2d0a6428f9efdad787bbc25c6dc6651962c57aa563154)  |
+| Mainnet | lendwise.fi (QA)    | Base         | 1 USDC | 0.00013 USDC | 0.99987 USDC      | 0.99987  | [0xc0b20798…](https://basescan.org/tx/0xc0b20798f64347577ad7800c219eb43e661d1c79a24ef2771e3a5b02a47fb5d6)         | [bdaec2ba…](https://stellar.expert/explorer/public/tx/bdaec2bafd472d169b7a418f0e0616bdfe6fe054055e90104b25dacfc39a570a)  |
 
 On Stellar Expert, each mint transaction calls `mint_and_forward` on the forwarder
 (`CA66Q2WFBND6V4UEB7RD4SAXSVIWMD6RA4X3U32ELVFGXV5PJK4T4VSZ` on testnet,
 `CBZL2IH7F6BIDAA3WBNXYKIXSATJGMSW7K5P5MJ6STX5RXN47TZJDF5T` on mainnet) and transfers the USDC to
-the recipient account. All five are Fast transfers (finality threshold 1000).
+the recipient account. All six are Fast transfers (finality threshold 1000).
 
 ### Tests (CI)
 
@@ -370,6 +371,8 @@ Stellar sign-in and the bridge in scope for vulnerability reports.
 ### Mainnet QA on lendwise.fi
 
 Run on 2026-10-19 (23:03–23:28 UTC), release `main` at `813b471`, with MetaMask and Freighter.
+Returning-user row 2 was replayed on 2026-10-21 on the same application code: only docs changed
+on `main` since `813b471`.
 
 **First-time user** — fresh account
 [`GDLZ2TS5XSMZ3WHO3R7TTJN56YUYHOBQRAX7SQZ4UHYNVXWCSIBBS7EG`](https://stellar.expert/explorer/public/account/GDLZ2TS5XSMZ3WHO3R7TTJN56YUYHOBQRAX7SQZ4UHYNVXWCSIBBS7EG),
@@ -402,17 +405,17 @@ Run on 2026-10-19 (23:03–23:28 UTC), release `main` at `813b471`, with MetaMas
 [`GDHYIHAZ5URVB5TUKLREMPFGH4AYMIMON5KHXKKNYLTYGLUECF4OKV33`](https://stellar.expert/explorer/public/account/GDHYIHAZ5URVB5TUKLREMPFGH4AYMIMON5KHXKKNYLTYGLUECF4OKV33),
 existing trustline:
 
-| #   | Check                                               | Result                                                                                                                    |
-| --- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 1   | USDC row on Base → bridge with Base pre-selected    | OK: Pay "USDC on Base"                                                                                                    |
-| 2   | Blend USDC row → bridge with the product, no source | OK: the link carries `product=`, and the page resolves the next step to Blend                                             |
-| 3   | Optimizer allocation on Stellar → bridge link       | OK: Blend v2.1 Fixed at 100 %, "Bridge 1000 USDC to Stellar"                                                              |
-| 4   | Preflight ready, no ChangeTrust                     | OK: "Bridge 4 USDC" directly                                                                                              |
-| 5   | Full transfer                                       | OK: 3.99948 USDC = (4,000,000 − 520) × 10 units                                                                           |
-| 6   | Transfers list                                      | OK: this account's transfers, newest first, with the mint link                                                            |
-| 7   | Amount above the 1,000 USDC cap                     | OK: refused before any wallet call; the server-side cap is pinned in `service.test.ts`; no row above the cap in the table |
-| 8   | Malformed amounts (`1,5`, `0.0000001`)              | OK: refused before any wallet call                                                                                        |
-| 9   | Signed out                                          | OK: back to "Sign in with Stellar", transfers list disabled                                                               |
+| #   | Check                                               | Result                                                                                                                                             |
+| --- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | USDC row on Base → bridge with Base pre-selected    | OK: Pay "USDC on Base"                                                                                                                             |
+| 2   | Blend USDC row → bridge with the product, no source | OK, replayed on 2026-10-21: the link carries `product=` and no source; once minted, **Next step: supply on Blend** opens the Blend v2.1 Fixed pool |
+| 3   | Optimizer allocation on Stellar → bridge link       | OK: Blend v2.1 Fixed at 100 %, "Bridge 1000 USDC to Stellar"                                                                                       |
+| 4   | Preflight ready, no ChangeTrust                     | OK: "Bridge 4 USDC" directly                                                                                                                       |
+| 5   | Full transfer                                       | OK: 3.99948 USDC = (4,000,000 − 520) × 10 units                                                                                                    |
+| 6   | Transfers list                                      | OK: this account's transfers, newest first, with the mint link                                                                                     |
+| 7   | Amount above the 1,000 USDC cap                     | OK: refused before any wallet call; the server-side cap is pinned in `service.test.ts`; no row above the cap in the table                          |
+| 8   | Malformed amounts (`1,5`, `0.0000001`)              | OK: refused before any wallet call                                                                                                                 |
+| 9   | Signed out                                          | OK: back to "Sign in with Stellar", transfers list disabled                                                                                        |
 
 | Step     | Transaction                                                                                                             |
 | -------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -425,6 +428,24 @@ existing trustline:
 The returning user's burn was relayed by MetaMask, which paid the gas in USDC: on Basescan the
 transaction is sent by a MetaMask relayer, and the `DepositForBurn` event names the user as
 depositor. The server checks the burn against that depositor, so it accepted it.
+
+**Row 2 replay** — 2026-10-21 (19:04–19:07 UTC), from the Blend USDC row, with account
+[`GDLZ2TS5XSMZ3WHO3R7TTJN56YUYHOBQRAX7SQZ4UHYNVXWCSIBBS7EG`](https://stellar.expert/explorer/public/account/GDLZ2TS5XSMZ3WHO3R7TTJN56YUYHOBQRAX7SQZ4UHYNVXWCSIBBS7EG),
+the first-time account above, which now holds the trustline. The first run had started its
+transfer from the banner, which carries no product, so the next step never showed. 1 USDC sent,
+0.99987 USDC received = (1,000,000 − 130) × 10 units; MetaMask relayed the burn again.
+
+| Step     | Transaction                                                                                                             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Approval | [0xede26da5…](https://basescan.org/tx/0xede26da5e783550846d2d02a2d69b05cc3ab13d322a43686a17de705256e62df)               |
+| Burn     | [0xc0b20798…](https://basescan.org/tx/0xc0b20798f64347577ad7800c219eb43e661d1c79a24ef2771e3a5b02a47fb5d6)               |
+| Mint     | [bdaec2ba…](https://stellar.expert/explorer/public/tx/bdaec2bafd472d169b7a418f0e0616bdfe6fe054055e90104b25dacfc39a570a) |
+
+![Blend USDC row: the Bridge to Stellar link carries product= and no source](scf-45/t3-qa-returning-blend-row.png)
+
+![Transfer completed: Next step: supply on Blend](scf-45/t3-qa-returning-blend-next-step.png)
+
+![The next step opens Supply USDC on the Blend v2.1 Fixed pool](scf-45/t3-qa-returning-blend-supply.png)
 
 ## Related
 
