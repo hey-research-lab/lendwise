@@ -1,9 +1,9 @@
 # SCF #45 — Milestone 3 (Tranche 3, Mainnet)
 
 Evidence for the six Tranche 3 deliverables of LendWise's
-[Stellar Community Fund #45 submission](https://communityfund.stellar.org/submissions/recmK8tdxCKvSU3GS)
-(Tranche 3, "Mainnet"): each success criterion, and where to check it — in this public
-repository, on the testnet staging environment, and on [lendwise.fi](https://lendwise.fi).
+[Stellar Community Fund #45 submission](https://communityfund.stellar.org/submissions/recmK8tdxCKvSU3GS):
+each success criterion, and where to check it — in this public repository, on the testnet
+staging environment, and on [lendwise.fi](https://lendwise.fi).
 
 | Deliverable                                                                                             | Success criterion                                                                                                                                                                                                 | Status    |
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
