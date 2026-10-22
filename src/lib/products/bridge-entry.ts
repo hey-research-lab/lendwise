@@ -2,7 +2,9 @@ import {
   MIN_BRIDGE_AMOUNT,
   formatUsdcAmount,
 } from '@/lib/execution/cctp/amounts'
+import { cctpSourceChainBySlug } from '@/lib/execution/cctp/config'
 import { bridgeHref, flooredUsdcAtomic } from '@/lib/execution/cctp/deep-link'
+import { chainSlugFor } from '@/lib/protocols/core/toolkit/chain-slugs'
 
 import {
   type RankableProduct,
@@ -16,18 +18,18 @@ import {
  *
  *   - Stellar row: its bridge entry, with the product pre-filled, so the flow
  *     can name the venue as the next step.
- *   - EVM row: the bridge with the row's network as source. `bridgeHref` emits
- *     `source` only for a CCTP source chain of the current network: an Aave
- *     `lido` / `etherfi` / `horizon` row, or a Polygon row, opens the bridge
- *     with no source rather than silently defaulting to Base.
+ *   - EVM row: the bridge with the row's chain as source, only when that chain
+ *     is a source of the bridge's menu. The chain comes from `poolChainId`, so
+ *     an Aave `ethereum-lido` row starts from Ethereum; a Polygon row gets no
+ *     action, since the bridge cannot take USDC from there.
  */
-export function bridgeActionFor(
-  p: RankableProduct & { network: string }
-): string | null {
+export function bridgeActionFor(p: RankableProduct): string | null {
   if (p.assetSymbol !== 'USDC') return null
   const entry = productEntry(p)
   if (entry.kind === 'bridge') return entry.href
-  return bridgeHref({ sourceSlug: p.network })
+  const chain = chainSlugFor(p.poolChainId)
+  if (!chain || !cctpSourceChainBySlug(chain)) return null
+  return bridgeHref({ sourceSlug: chain })
 }
 
 /** Whether the tables' Network filter currently includes Stellar. */
