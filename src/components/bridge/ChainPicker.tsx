@@ -10,23 +10,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Separator } from '@/components/ui/separator'
 import { formatUsdcAmount } from '@/lib/execution/cctp/amounts'
 import type { CctpSourceChain } from '@/lib/execution/cctp/config'
 
 const PILL =
-  'bg-secondary text-secondary-foreground inline-flex h-10 items-center gap-2 rounded-full pr-3 pl-1 text-sm font-medium'
+  'bg-secondary text-secondary-foreground inline-flex h-10 items-center gap-2 rounded-full pr-3 pl-2 text-sm font-medium'
 
-/** The chain's logo with USDC's beside it. */
+/** The chain's logo, a divider, then USDC's logo; the label follows. */
 function PairIcons({ slug }: { slug: string }) {
   return (
-    <span className="flex items-center">
+    <>
       <NetworkIcon networkSlug={slug} size={24} />
-      <TokenIcon
-        symbol="USDC"
-        size={24}
-        className="ring-secondary -ml-2 rounded-full ring-2"
+      <Separator
+        orientation="vertical"
+        className="bg-foreground/20 data-[orientation=vertical]:h-5"
       />
-    </span>
+      <TokenIcon symbol="USDC" size={24} />
+    </>
   )
 }
 

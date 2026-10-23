@@ -6,9 +6,11 @@ import {
   activeWalletUpdatesWithoutEvm,
   currentStellarSession,
   isDisplayableActive,
+  parseUsedWalletIds,
   restoredStellarWalletUpdate,
   shouldClearStellarSession,
   signedInDuringRestore,
+  stellarWalletSections,
 } from './stellar-wallets'
 
 const NOW = 1_000_000
@@ -264,5 +266,59 @@ describe('activeWalletUpdatesWithoutEvm', () => {
         },
       },
     ])
+  })
+})
+
+describe('stellarWalletSections', () => {
+  const wallets = [
+    { id: 'albedo', isAvailable: true },
+    { id: 'freighter', isAvailable: false },
+    { id: 'lobstr', isAvailable: true },
+    { id: 'xbull', isAvailable: true },
+  ]
+
+  it('lists the usable wallets most recently used first, then the ones to install', () => {
+    const { available, toInstall } = stellarWalletSections(wallets, [
+      'xbull',
+      'lobstr',
+    ])
+    expect(available.map((a) => a.wallet.id)).toEqual([
+      'xbull',
+      'lobstr',
+      'albedo',
+    ])
+    expect(toInstall.map((w) => w.id)).toEqual(['freighter'])
+  })
+
+  it('flags only the latest wallet used as recent', () => {
+    const { available } = stellarWalletSections(wallets, ['lobstr', 'xbull'])
+    expect(available.filter((a) => a.recent).map((a) => a.wallet.id)).toEqual([
+      'lobstr',
+    ])
+  })
+
+  it('keeps the kit order when no wallet was used yet', () => {
+    const { available } = stellarWalletSections(wallets, [])
+    expect(available.map((a) => a.wallet.id)).toEqual([
+      'albedo',
+      'lobstr',
+      'xbull',
+    ])
+    expect(available.some((a) => a.recent)).toBe(false)
+  })
+})
+
+describe('parseUsedWalletIds', () => {
+  it('reads the kit record, keeping string ids only', () => {
+    expect(parseUsedWalletIds('["xbull", 3, "albedo"]')).toEqual([
+      'xbull',
+      'albedo',
+    ])
+  })
+
+  it('falls back to no recent wallet on a missing or broken record', () => {
+    expect(parseUsedWalletIds(null)).toEqual([])
+    expect(parseUsedWalletIds('{oops')).toEqual([])
+    expect(parseUsedWalletIds('{"a":1}')).toEqual([])
   })
 })

@@ -172,7 +172,7 @@ flowchart LR
         Albedo["Albedo"]
     end
 
-    Wallets --> StellarKit["StellarWalletContext.tsx<br/>@creit-tech/stellar-wallets-kit<br/>StellarWalletsKit.authModal()"]
+    Wallets --> StellarKit["StellarWalletContext.tsx<br/>@creit-tech/stellar-wallets-kit<br/>StellarWalletPicker.tsx"]
     StellarKit --> Store["Zustand walletStore<br/>chainFamily: 'evm' | 'stellar' | 'bitcoin'"]
 
     subgraph SEP10["SEP-10 authentication — NEW (1.2)"]
@@ -199,7 +199,8 @@ flowchart LR
 ```
 
 **Already shipped:** `src/contexts/StellarWalletContext.tsx` covers **Freighter, xBull, Lobstr,
-and Albedo** through `@creit-tech/stellar-wallets-kit`'s `authModal()`, running alongside
+and Albedo** through `@creit-tech/stellar-wallets-kit`, picked in the app's own
+`StellarWalletPicker`, running alongside
 `WagmiProvider`. The connected address is written into the existing Zustand `walletStore`
 (`src/stores/walletStore.ts`), which already carries a `chainFamily` discriminator
 (`'evm' | 'stellar' | 'bitcoin'`) — this is not new wiring, it is how EVM wallets persist today

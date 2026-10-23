@@ -231,8 +231,9 @@ gives no answer; the third mint went through it. Details in
 
 1. Open [lendwise.fi](https://lendwise.fi), Supply table, network filter **Stellar**: a "Bridge
    USDC to Stellar" banner leads to the bridge.
-2. On any USDC row, the **Bridge to Stellar** action (⇆) opens the bridge with USDC, and with the
-   source chain when the row is on Ethereum, Base, Arbitrum or Optimism.
+2. On a USDC row on Stellar, Ethereum, Base, Arbitrum or Optimism, the **Bridge to Stellar**
+   action (⇆) opens the bridge with USDC: with the product for a Stellar row, with the row's chain
+   as source otherwise. Rows on other chains have no bridge action.
 3. In the Supply optimizer, an allocation on a Stellar USDC venue offers **Bridge <amount> USDC to
    Stellar**, with the amount pre-filled.
 4. The destination is the Stellar account you are signed in with.
@@ -247,12 +248,12 @@ gives no answer; the third mint went through it. Details in
 
 ### Tests (CI)
 
-| Test file                                                                                             | What it pins                                                                                                                                            |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`products/__tests__/ranking.test.ts`](../src/lib/products/__tests__/ranking.test.ts)                 | The fixture Stellar product ranked by its rate among the EVM markets of the same asset, first when it pays the most; tagged Stellar with a bridge entry |
-| [`products/__tests__/bridge-entry.test.ts`](../src/lib/products/__tests__/bridge-entry.test.ts)       | Stellar USDC row → bridge with its product; EVM USDC row → its chain as source, only for a CCTP source chain; banner on the Stellar filter              |
-| [`protocols/stellar/fixture/yield.test.ts`](../src/lib/protocols/stellar/fixture/yield.test.ts)       | The fixture is off without its variable and in production; one USDC supply product on the Blend v2.1 Fixed pool reserve                                 |
-| [`execution/cctp/__tests__/deep-link.test.ts`](../src/lib/execution/cctp/__tests__/deep-link.test.ts) | Amount floored to 6 decimals; source only for a supported chain of the current network, no silent fallback                                              |
+| Test file                                                                                             | What it pins                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`products/__tests__/ranking.test.ts`](../src/lib/products/__tests__/ranking.test.ts)                 | The fixture Stellar product ranked by its rate among the EVM markets of the same asset, first when it pays the most; tagged Stellar with a bridge entry                                   |
+| [`products/__tests__/bridge-entry.test.ts`](../src/lib/products/__tests__/bridge-entry.test.ts)       | Stellar USDC row → bridge with its product; EVM USDC row on a CCTP source chain → that chain as source, read from the pool chain; no action on other chains; banner on the Stellar filter |
+| [`protocols/stellar/fixture/yield.test.ts`](../src/lib/protocols/stellar/fixture/yield.test.ts)       | The fixture is off without its variable and in production; one USDC supply product on the Blend v2.1 Fixed pool reserve                                                                   |
+| [`execution/cctp/__tests__/deep-link.test.ts`](../src/lib/execution/cctp/__tests__/deep-link.test.ts) | Amount floored to 6 decimals; source only for a supported chain of the current network, no silent fallback                                                                                |
 
 ---
 
