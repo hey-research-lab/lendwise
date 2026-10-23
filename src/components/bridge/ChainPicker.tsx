@@ -15,7 +15,7 @@ import { formatUsdcAmount } from '@/lib/execution/cctp/amounts'
 import type { CctpSourceChain } from '@/lib/execution/cctp/config'
 
 const PILL =
-  'bg-secondary text-secondary-foreground inline-flex h-10 items-center gap-2 rounded-full pr-3 pl-1 text-sm font-medium'
+  'bg-secondary text-secondary-foreground inline-flex h-10 items-center gap-2 rounded-full pr-3 pl-2 text-sm font-medium'
 
 /** The chain's logo, a divider, then USDC's logo; the label follows. */
 function PairIcons({ slug }: { slug: string }) {
