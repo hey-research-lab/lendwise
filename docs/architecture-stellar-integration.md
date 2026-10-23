@@ -191,7 +191,7 @@ flowchart TD
 flowchart TD
     subgraph Auth["Wallet connection + SEP-10 authentication"]
         direction TB
-        Wallets["Freighter / xBull / Lobstr / Albedo"] --> StellarKit["StellarWalletContext.tsx<br/>StellarWalletsKit.authModal()"]
+        Wallets["Freighter / xBull / Lobstr / Albedo"] --> StellarKit["StellarWalletContext.tsx<br/>StellarWalletPicker.tsx"]
         StellarKit --> Challenge["POST /api/auth/stellar/challenge<br/>server-signed tx: seq 0, ManageData nonce,<br/>web_auth_domain = request host, 5-min time bounds"]
         Challenge --> Sign["Wallet signs challenge<br/>StellarWalletsKit.signTransaction — never submitted"]
         Sign --> Verify["POST /api/auth/stellar/verify<br/>signatures vs account signers/threshold,<br/>nonce consumed once (Redis GETDEL)"]
@@ -241,7 +241,8 @@ flowchart TD
 **Reading the diagram**
 
 - **Auth (top) — SEP-10 on top of the wallet connection.** `StellarWalletContext.tsx` connects
-  **Freighter, xBull, Lobstr and Albedo** via `StellarWalletsKit.authModal()`, then runs the
+  **Freighter, xBull, Lobstr and Albedo** through the Stellar Wallets Kit, picked in the app's own
+  `StellarWalletPicker`, then runs the
   **SEP-10** round trip (`src/lib/auth/stellar-sep10.ts`): the server issues a challenge signed by
   `STELLAR_SEP10_SIGNING_SECRET` and bound to the host the request reached (`<host> auth` +
   `web_auth_domain`), the client checks it is a genuine challenge for this address, this network

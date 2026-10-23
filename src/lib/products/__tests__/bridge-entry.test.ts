@@ -14,6 +14,13 @@ const STELLAR_USDC = {
   productId: 'blend:v2.1:stellar:pool:p:usdc:supply',
 }
 
+/** A table row as the actions cell receives it, network slug included. */
+const usdcRow = (poolChainId: number, network: string) => ({
+  poolChainId,
+  network,
+  assetSymbol: 'USDC',
+})
+
 describe('bridgeActionFor', () => {
   it('sends a Stellar USDC row to the bridge with its product', () => {
     expect(bridgeActionFor(STELLAR_USDC)).toBe(
@@ -22,42 +29,34 @@ describe('bridgeActionFor', () => {
   })
 
   it('sends an EVM USDC row on a CCTP source chain with its chain as source', () => {
-    const href = bridgeActionFor({
-      poolChainId: 8453,
-      network: 'base',
-      assetSymbol: 'USDC',
-    })
+    const href = bridgeActionFor(usdcRow(8453, 'base'))
     expect(href).toBe(bridgeHref({ sourceSlug: 'base' }))
     expect(href).toContain('source=base')
   })
 
-  it('never falls back to a source for a network CCTP does not serve', () => {
-    for (const network of ['lido', 'etherfi', 'horizon', 'polygon']) {
-      const href = bridgeActionFor({
-        poolChainId: 1,
-        network,
-        assetSymbol: 'USDC',
-      })
-      expect(href).not.toBeNull()
-      expect(href).not.toContain('source=')
+  it('takes the source from the pool chain, so an Aave Ethereum market starts from Ethereum', () => {
+    for (const network of [
+      'ethereum-lido',
+      'ethereum-etherfi',
+      'ethereum-horizon',
+    ]) {
+      expect(bridgeActionFor(usdcRow(1, network))).toBe(
+        bridgeHref({ sourceSlug: 'ethereum' })
+      )
     }
+  })
+
+  it('offers nothing for a USDC row on a chain the bridge cannot take USDC from', () => {
+    expect(bridgeActionFor(usdcRow(137, 'polygon'))).toBeNull()
+    expect(bridgeActionFor(usdcRow(56, 'bsc'))).toBeNull()
+    expect(bridgeActionFor(usdcRow(999999, 'unknown'))).toBeNull()
   })
 
   it('offers nothing for an asset the bridge does not carry', () => {
     expect(
-      bridgeActionFor({
-        poolChainId: 1,
-        network: 'ethereum',
-        assetSymbol: 'WETH',
-      })
+      bridgeActionFor({ ...usdcRow(1, 'ethereum'), assetSymbol: 'WETH' })
     ).toBeNull()
-    expect(
-      bridgeActionFor({
-        poolChainId: -1,
-        network: 'stellar',
-        assetSymbol: 'XLM',
-      })
-    ).toBeNull()
+    expect(bridgeActionFor({ ...STELLAR_USDC, assetSymbol: 'XLM' })).toBeNull()
   })
 })
 
