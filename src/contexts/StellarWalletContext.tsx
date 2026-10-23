@@ -1,8 +1,17 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 
-import type { Networks } from '@creit-tech/stellar-wallets-kit'
+import type {
+  ISupportedWallet,
+  Networks,
+} from '@creit-tech/stellar-wallets-kit'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,11 +23,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  type PickerWallet,
+  StellarWalletPicker,
+} from '@/components/wallet/StellarWalletPicker'
 import { stellarNetwork } from '@/config/stellar-network'
 import { identifyWallet } from '@/lib/analytics/identifyWallet'
 import { formatAddress } from '@/lib/utils'
 import { reconnectHint, takeExpectedReconnect } from '@/lib/wallet/reconnect'
 import {
+  parseUsedWalletIds,
   restoredStellarWalletUpdate,
   shouldClearStellarSession,
   signedInDuringRestore,
@@ -51,35 +65,6 @@ interface Sep10SessionResponse {
 }
 
 /**
- * The wallet modal's colors, as the app's own theme tokens. The kit writes each
- * value into a `--swk-*` custom property on <html>, where the `.dark` class
- * next-themes toggles also lives — so the modal follows light and dark mode
- * with no listener. Without this it kept the kit's light default in dark mode.
- * (`lighter` and `light` are unused by the kit's components.)
- */
-const SWK_THEME = {
-  background: 'var(--popover)',
-  'background-secondary': 'var(--muted)',
-  'foreground-strong': 'var(--foreground)',
-  foreground: 'var(--popover-foreground)',
-  'foreground-secondary': 'var(--muted-foreground)',
-  primary: 'var(--primary)',
-  'primary-foreground': 'var(--primary-foreground)',
-  transparent: 'rgba(0, 0, 0, 0)',
-  lighter: 'var(--muted)',
-  light: 'var(--accent)',
-  'light-gray': 'var(--muted-foreground)',
-  gray: 'var(--muted-foreground)',
-  danger: 'var(--destructive)',
-  border: 'var(--border)',
-  shadow:
-    '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
-  'border-radius': 'var(--radius)',
-  // The app's font variable is declared on <body>, below <html>: inherit it.
-  'font-family': 'inherit',
-}
-
-/**
  * Wallets that sign in a browser popup opened by this page (`window.open`).
  * Connecting already opened one, for the address, and spent the click that
  * allowed it; the challenge only arrives after a server round trip, so the
@@ -88,6 +73,24 @@ const SWK_THEME = {
  * Extension (Freighter, xBull) and WalletConnect (Lobstr) wallets are unaffected.
  */
 const SIGNS_IN_A_POPUP = new Set(['albedo'])
+
+type StellarKit = typeof import('@creit-tech/stellar-wallets-kit')
+
+/** The wallet picker while it is open, and the connect call waiting on it. */
+interface WalletPicker {
+  /** Null while the kit checks which wallets are installed. */
+  wallets: ISupportedWallet[] | null
+  usedIds: string[]
+  resolve: (address: string) => void
+  reject: (error: Error) => void
+}
+
+/** Closing the picker: the user changed their mind, nothing to report. */
+class WalletPickerClosed extends Error {
+  constructor() {
+    super('Stellar wallet picker closed')
+  }
+}
 
 interface SignPrompt {
   walletName: string
@@ -194,6 +197,13 @@ async function validateSep10Challenge({
   }
 }
 
+/** Selects a wallet in the kit and asks it for the address to connect. */
+async function connectWallet(kit: StellarKit, id: string): Promise<string> {
+  kit.StellarWalletsKit.setWallet(id)
+  const { address } = await kit.StellarWalletsKit.fetchAddress()
+  return address
+}
+
 export function StellarWalletProvider({
   children,
 }: {
@@ -203,6 +213,73 @@ export function StellarWalletProvider({
   const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
   const [signPrompt, setSignPrompt] = useState<SignPrompt | null>(null)
+  const [walletPicker, setWalletPicker] = useState<WalletPicker | null>(null)
+  // The loaded kit, so a wallet row can connect inside its own click.
+  const kitRef = useRef<StellarKit | null>(null)
+
+  /**
+   * Opens the wallet picker and resolves with the address of the wallet the
+   * user connects. A wallet that runs this page inside its own app (a platform
+   * wrapper) is connected directly, as the kit's own modal did.
+   */
+  const pickWallet = (kit: StellarKit) =>
+    new Promise<string>((resolve, reject) => {
+      let settled = false
+      const done = {
+        resolve: (address: string) => {
+          settled = true
+          resolve(address)
+        },
+        reject: (error: Error) => {
+          settled = true
+          reject(error)
+        },
+      }
+      let usedIds: string[] = []
+      try {
+        usedIds = parseUsedWalletIds(
+          localStorage.getItem(kit.LocalStorageKeys.usedWalletsIds)
+        )
+      } catch {
+        // Storage blocked (private window): no wallet is flagged recent.
+      }
+      // A picker already open (a second connect click) is cancelled, not left hanging.
+      walletPicker?.reject(new WalletPickerClosed())
+      setWalletPicker({ wallets: null, usedIds, ...done })
+      kit.StellarWalletsKit.refreshSupportedWallets().then(
+        (wallets) => {
+          if (settled) return
+          const wrapper = wallets.find((w) => w.isPlatformWrapper)
+          if (wrapper) {
+            setWalletPicker(null)
+            connectWallet(kit, wrapper.id).then(done.resolve, done.reject)
+            return
+          }
+          setWalletPicker((p) =>
+            p?.resolve === done.resolve ? { ...p, wallets } : p
+          )
+        },
+        (error) => {
+          setWalletPicker(null)
+          done.reject(error instanceof Error ? error : new Error(String(error)))
+        }
+      )
+    })
+
+  /** A picker row: connect a usable wallet, open the install page otherwise. */
+  const onWalletPicked = (wallet: PickerWallet) => {
+    const kit = kitRef.current
+    if (!walletPicker || !kit) return
+    if (!wallet.isAvailable) {
+      const url = walletPicker.wallets?.find((w) => w.id === wallet.id)?.url
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    const { resolve, reject } = walletPicker
+    setWalletPicker(null)
+    // Still inside the click: a wallet that asks in a popup (Albedo) may open it.
+    connectWallet(kit, wallet.id).then(resolve, reject)
+  }
 
   /** Resolves when the user clicks "Sign", rejects if they cancel. */
   const confirmSigning = (
@@ -219,8 +296,8 @@ export function StellarWalletProvider({
     // Dynamically initialize the Stellar Wallets Kit on the client side
     const initKit = async () => {
       try {
-        const { StellarWalletsKit } =
-          await import('@creit-tech/stellar-wallets-kit')
+        const kit = await import('@creit-tech/stellar-wallets-kit')
+        const { StellarWalletsKit } = kit
         const { AlbedoModule } =
           await import('@creit-tech/stellar-wallets-kit/modules/albedo')
         const { FreighterModule } =
@@ -232,7 +309,6 @@ export function StellarWalletProvider({
 
         StellarWalletsKit.init({
           network: stellarNetwork().passphrase as Networks,
-          theme: SWK_THEME,
           modules: [
             new AlbedoModule(),
             new FreighterModule(),
@@ -240,6 +316,7 @@ export function StellarWalletProvider({
             new xBullModule(),
           ],
         })
+        kitRef.current = kit
         setInitialized(true)
       } catch (err) {
         console.error('Failed to initialize StellarWalletsKit:', err)
@@ -292,10 +369,9 @@ export function StellarWalletProvider({
     setError(null)
 
     try {
-      const { StellarWalletsKit } =
-        await import('@creit-tech/stellar-wallets-kit')
-      const result = await StellarWalletsKit.authModal()
-      const address = result?.address
+      const kit = await import('@creit-tech/stellar-wallets-kit')
+      const { StellarWalletsKit } = kit
+      const address = await pickWallet(kit)
 
       if (!address) {
         throw new Error('Failed to retrieve address from the wallet')
@@ -375,6 +451,7 @@ export function StellarWalletProvider({
         }
       })
     } catch (err: unknown) {
+      if (err instanceof WalletPickerClosed) return
       console.error('Failed to connect Stellar wallet:', err)
       const errMsg = err instanceof Error ? err.message : String(err)
       setError(errMsg || 'Failed to connect Stellar wallet')
@@ -449,6 +526,16 @@ export function StellarWalletProvider({
       }}
     >
       {children}
+      <StellarWalletPicker
+        open={walletPicker !== null}
+        wallets={walletPicker?.wallets ?? null}
+        usedIds={walletPicker?.usedIds ?? []}
+        onSelect={onWalletPicked}
+        onClose={() => {
+          walletPicker?.reject(new WalletPickerClosed())
+          setWalletPicker(null)
+        }}
+      />
       <Dialog
         open={signPrompt !== null}
         onOpenChange={(open) => {

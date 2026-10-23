@@ -129,3 +129,40 @@ export function isDisplayableActive(
     !!session && session.address === wallet.address && session.expiresAt > now
   )
 }
+
+/**
+ * The Stellar wallet picker's two lists, in the kit's own order: the wallets
+ * usable now, most recently used first (the latest one flagged `recent`), then
+ * the ones to install. `usedIds` is the kit's recent-wallets record, newest
+ * first.
+ */
+export function stellarWalletSections<
+  W extends { id: string; isAvailable: boolean },
+>(
+  wallets: readonly W[],
+  usedIds: readonly string[]
+): { available: { wallet: W; recent: boolean }[]; toInstall: W[] } {
+  const rank = (w: W) => {
+    const i = usedIds.indexOf(w.id)
+    return i === -1 ? usedIds.length : i
+  }
+  return {
+    available: wallets
+      .filter((w) => w.isAvailable)
+      .sort((a, b) => rank(a) - rank(b))
+      .map((wallet) => ({ wallet, recent: wallet.id === usedIds[0] })),
+    toInstall: wallets.filter((w) => !w.isAvailable),
+  }
+}
+
+/** The kit's recent-wallets record (a JSON array of ids), or [] if unreadable. */
+export function parseUsedWalletIds(raw: string | null): string[] {
+  try {
+    const ids: unknown = raw ? JSON.parse(raw) : []
+    return Array.isArray(ids)
+      ? ids.filter((id): id is string => typeof id === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
